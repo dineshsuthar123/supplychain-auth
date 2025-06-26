@@ -1,0 +1,130 @@
+# Prometheus and Grafana Monitoring Stack
+# Command to install: helm install prometheus prometheus-community/kube-prometheus-stack -f prometheus-values.yaml
+
+# Custom values for Supply Chain monitoring
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    resources:
+      requests:
+        memory: 2Gi
+        cpu: 1000m
+      limits:
+        memory: 4Gi
+        cpu: 2000m
+
+    # Custom scrape configs for our services
+    additionalScrapeConfigs:
+      - job_name: "supplychain-services"
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - supplychain-auth
+        relabel_configs:
+          - source_labels:
+              [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels:
+              [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+
+grafana:
+  enabled: true
+  adminPassword: "supplychain-admin-2024!"
+
+  # Custom dashboards
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "supplychain"
+          orgId: 1
+          folder: "Supply Chain"
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/supplychain
+
+  dashboards:
+    supplychain:
+      supply-chain-overview:
+        gnetId: 12114 # JVM dashboard
+        revision: 2
+        datasource: Prometheus
+
+      kafka-monitoring:
+        gnetId: 7589 # Kafka dashboard
+        revision: 5
+        datasource: Prometheus
+
+      mongodb-metrics:
+        gnetId: 2583 # MongoDB dashboard
+        revision: 2
+        datasource: Prometheus
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# Enable service monitors for our applications
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Node exporter for infrastructure metrics
+nodeExporter:
+  enabled: true
+
+# Kube state metrics for Kubernetes metrics
+kubeStateMetrics:
+  enabled: true
+
+# Alert manager configuration
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 200m
+
+    # Custom alerting rules
+    additionalPeers: []
+
+  config:
+    global:
+      smtp_smarthost: "localhost:587"
+      smtp_from: "alerts@supplychain.company.com"
+
+    route:
+      group_by: ["alertname"]
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: "web.hook"
+
+    receivers:
+      - name: "web.hook"
+        webhook_configs:
+          - url: "http://127.0.0.1:5001/"

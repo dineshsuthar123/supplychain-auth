@@ -1,0 +1,112 @@
+# Modern Pod Security Standards (replaces deprecated PodSecurityPolicy)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supplychain-auth
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+# Security Context Constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: supplychain-limits
+  namespace: supplychain-auth
+spec:
+  limits:
+    - default:
+        cpu: "1"
+        memory: "1Gi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      type: Container
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: supplychain-network-policy
+  namespace: supplychain-auth
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: supplychain-auth
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 27017
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 9092
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 27017
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 9092
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: supplychain-jwt-secret
+  namespace: supplychain-auth
+type: Opaque
+data:
+  jwt-secret: "c3VwcGx5Y2hhaW4tam9zZS1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW5z" # base64 encoded secret
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-config
+  namespace: supplychain-auth
+data:
+  security.properties: |
+    # JWT Configuration
+    jwt.secret=${JWT_SECRET}
+    jwt.expiration=86400000
+    jwt.issuer=supplychain-auth
+
+    # Security Headers
+    security.headers.frame-options=DENY
+    security.headers.content-type-options=nosniff
+    security.headers.xss-protection=1; mode=block
+    security.headers.referrer-policy=strict-origin-when-cross-origin
+    security.headers.permissions-policy=geolocation=(), microphone=(), camera=()
+
+    # Rate Limiting
+    rate.limit.requests-per-minute=1000
+    rate.limit.burst=100
+
+    # CORS Configuration
+    cors.allowed-origins=https://supplychain-frontend.company.com
+    cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS
+    cors.allowed-headers=*
+    cors.allow-credentials=true

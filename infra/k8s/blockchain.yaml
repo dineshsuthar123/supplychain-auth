@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eth-node
+  namespace: supplychain-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eth-node
+  template:
+    metadata:
+      labels:
+        app: eth-node
+    spec:
+      containers:
+        - name: eth-node
+          image: ethereum/client-go:v1.14.5
+          args:
+            [
+              "--dev",
+              "--http",
+              "--http.addr",
+              "0.0.0.0",
+              "--http.api",
+              "eth,net,web3,personal",
+            ]
+          ports:
+            - containerPort: 8545
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eth-node
+  namespace: supplychain-auth
+spec:
+  selector:
+    app: eth-node
+  ports:
+    - protocol: TCP
+      port: 8545
+      targetPort: 8545
+  type: ClusterIP

@@ -1,0 +1,101 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: supplychain-alerting-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+    release: prometheus
+spec:
+  groups:
+    - name: supplychain.rules
+      rules:
+        # High-level service availability
+        - alert: SupplyChainServiceDown
+          expr: up{job="supplychain-services"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Supply Chain service {{ $labels.instance }} is down"
+            description: "{{ $labels.instance }} has been down for more than 1 minute."
+
+        # API Response time alerts
+        - alert: HighAPILatency
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="supplychain-services"}[5m])) > 0.4
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High API latency detected"
+            description: "95th percentile latency is {{ $value }}s on {{ $labels.instance }}"
+
+        # Verification throughput monitoring
+        - alert: LowVerificationThroughput
+          expr: rate(http_requests_total{endpoint="/api/verify/*"}[5m]) < 50
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Verification throughput below target"
+            description: "Verification rate is {{ $value }} req/sec, below 50 req/sec target"
+
+        # Error rate monitoring
+        - alert: HighErrorRate
+          expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate detected"
+            description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+        # MongoDB connection issues
+        - alert: MongoDBConnectionFailures
+          expr: increase(mongodb_connections_failed_total[5m]) > 10
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "MongoDB connection failures"
+            description: "{{ $value }} MongoDB connection failures in the last 5 minutes"
+
+        # Kafka consumer lag
+        - alert: KafkaConsumerLag
+          expr: kafka_consumer_lag_sum > 1000
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka consumer lag is high"
+            description: "Consumer lag is {{ $value }} messages on {{ $labels.topic }}"
+
+        # JVM memory usage
+        - alert: JVMMemoryUsageHigh
+          expr: jvm_memory_used_bytes / jvm_memory_max_bytes > 0.8
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "JVM memory usage is high"
+            description: "JVM memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+        # Disk space monitoring
+        - alert: DiskSpaceLow
+          expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Disk space is running low"
+            description: "Only {{ $value | humanizePercentage }} disk space remaining on {{ $labels.instance }}"
+
+        # Pod restart monitoring
+        - alert: FrequentPodRestarts
+          expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod is restarting frequently"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
