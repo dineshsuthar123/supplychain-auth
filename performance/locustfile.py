@@ -3,6 +3,7 @@ Supply Chain Authentication Platform - Performance Testing
 Target: 5k+ verifications/minute with <400ms p95 latency
 """
 
+import os
 from locust import HttpUser, task, between
 import random
 import string
@@ -10,7 +11,8 @@ import json
 
 class SupplyChainUser(HttpUser):
     wait_time = between(0.1, 0.5)  # High load simulation
-    host = "http://k8s-supplych-supplych-01596f8564-48955028.ap-south-1.elb.amazonaws.com"
+    # Use LOCUST_HOST if provided (or pass -H/--host at runtime). Default to local free stack.
+    host = os.getenv("LOCUST_HOST", "http://localhost:8080")
     
     def on_start(self):
         """Initialize test data"""
@@ -90,7 +92,7 @@ class SupplyChainUser(HttpUser):
 class HighVolumeVerificationUser(HttpUser):
     """Specialized user for verification-only load testing"""
     wait_time = between(0.05, 0.1)  # Very high frequency
-    host = "http://k8s-supplych-supplych-01596f8564-48955028.ap-south-1.elb.amazonaws.com"
+    host = os.getenv("LOCUST_HOST", "http://localhost:8080")
     
     @task(1)
     def rapid_verify(self):
