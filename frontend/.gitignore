@@ -44,8 +44,6 @@ temp/
 # Docker
 .docker/
 
-# AWS credentials
-.aws/
 
 # Kubernetes secrets
 *-secrets.yaml

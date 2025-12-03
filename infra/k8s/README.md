@@ -1,6 +1,6 @@
 # Kubernetes Manifests for Supply Chain Authentication System
 
-This directory contains Kubernetes YAML files for deploying the backend microservices, blockchain node, Redis, PostgreSQL, MongoDB, and supporting infrastructure on AWS EKS.
+This directory contains Kubernetes YAML files for deploying the backend microservices, blockchain node, Redis, PostgreSQL, MongoDB, and supporting infrastructure on any free Kubernetes distribution (k3d, kind, Minikube, etc.).
 
 ## Structure
 - `product-service/` - Deployment, Service, HPA
@@ -15,7 +15,6 @@ This directory contains Kubernetes YAML files for deploying the backend microser
 - `namespace.yaml` - Namespace definition
 
 ## To Do
-- Add manifests for each component
-- Configure resource requests/limits and auto-scaling
-- Add secrets/configmaps for sensitive data
-- Document deployment steps
+- Parameterize resource requests/limits per environment
+- Wire the manifests to ConfigMaps/Secrets generated from `.env`
+- Add kustomize overlays for local/demo deployments

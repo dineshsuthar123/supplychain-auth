@@ -12,7 +12,7 @@ contract ProductNFT is ERC721URIStorage, Ownable {
 
     event ProductMinted(address indexed to, uint256 indexed tokenId, string serial, string tokenURI);
 
-    constructor() ERC721("ProductNFT", "PNFT") {}
+    constructor() ERC721("ProductNFT", "PNFT") Ownable(msg.sender) {}
 
     /// @notice Mint a new product NFT
     function mintProduct(address to, string memory serial, string memory tokenURI) external onlyOwner returns (uint256) {

@@ -29,7 +29,7 @@ contract ZKProductVerifier {
         uint256[] inputs;
     }
     
-    VerifyingKey public verifyingKey;
+    VerifyingKey private verifyingKey;
     ProductVerifierV2 public immutable productVerifier;
     
     mapping(bytes32 => bool) public zkVerifiedProducts;
@@ -143,6 +143,10 @@ contract ZKProductVerifier {
         // In production, add proper access control
         verifyingKey = newKey;
     }
+
+    function getVerifyingKey() external view returns (VerifyingKey memory) {
+        return verifyingKey;
+    }
 }
 
 /**
@@ -172,7 +176,7 @@ contract SupplyChainNFT is ERC721, Ownable {
     event ProductNFTMinted(uint256 indexed tokenId, string serialNumber, address manufacturer);
     event ProductNFTVerified(uint256 indexed tokenId, bool verified);
     
-    constructor(address _productVerifier) ERC721("SupplyChain Product", "SCP") {
+    constructor(address _productVerifier) ERC721("SupplyChain Product", "SCP") Ownable(msg.sender) {
         productVerifier = ProductVerifierV2(_productVerifier);
     }
     
@@ -214,7 +218,7 @@ contract SupplyChainNFT is ERC721, Ownable {
      * @dev Get NFT metadata URI
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "Token does not exist");
+        require(_ownerOf(tokenId) != address(0), "Token does not exist");
         return productNFTs[tokenId].metadataURI;
     }
     
@@ -222,7 +226,7 @@ contract SupplyChainNFT is ERC721, Ownable {
      * @dev Mark NFT as verified
      */
     function markNFTVerified(uint256 tokenId) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+        require(_ownerOf(tokenId) != address(0), "Token does not exist");
         productNFTs[tokenId].isVerified = true;
         emit ProductNFTVerified(tokenId, true);
     }

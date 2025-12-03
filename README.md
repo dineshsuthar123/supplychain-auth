@@ -16,6 +16,8 @@
 
 ---
 
+> **Cost-Saving Note:** The very first production tests for this platform ran on AWS EKS, but the project has since been migrated to a 100% free toolchain (Docker Compose + k3d/kind + Vercel/Netlify free tiers). Every instruction below reflects the cost-free stack so you can run the full system without cloud bills.
+
 ## 🌟 Revolutionary Impact
 
 > **"From 48 hours to 2 seconds"** - Complete supply chain transformation
@@ -52,7 +54,7 @@ As a dedicated **computer science student**, I built this entire platform **sing
 ### 📚 Learning Journey
 - **Backend Mastery** - Java, Spring Boot, Microservices
 - **Frontend Excellence** - React.js, Modern JavaScript
-- **DevOps Skills** - Docker, Kubernetes, AWS
+- **DevOps Skills** - Docker, Kubernetes (k3d/kind), GitHub Actions
 - **Blockchain Technology** - Smart Contracts, Web3
 - **System Design** - Scalable architecture patterns
 
@@ -65,8 +67,8 @@ As a dedicated **computer science student**, I built this entire platform **sing
 ```mermaid
 graph TB
     subgraph "🌐 Global Access Layer"
-        A[Internet Users] --> B[AWS ALB + SSL]
-        B --> C[Vercel CDN]
+        A[Internet Users] --> B[Traefik + Let's Encrypt]
+        B --> C[Free CDN (Vercel/Netlify)]
     end
     
     subgraph "🔒 Security Perimeter"
@@ -82,7 +84,7 @@ graph TB
     end
     
     subgraph "💾 Data Layer"
-        G --> J[MongoDB Atlas]
+        G --> J[MongoDB Community Edition]
         H --> K[Redis Cache]
         I --> L[Apache Kafka]
     end
@@ -136,9 +138,9 @@ graph TB
 ### Infrastructure & DevOps
 | Technology | Purpose | Production Benefits |
 |------------|---------|-------------------|
-| **AWS EKS** | Kubernetes Management | 99.97% uptime SLA |
+| **k3d + Kubernetes** | Cluster Orchestration | Zero cloud bills, runs inside Docker |
 | **Docker** | Containerization | Multi-stage optimized builds |
-| **MongoDB Atlas** | NoSQL Database | Global clusters with auto-scaling |
+| **MongoDB Community** | NoSQL Database | Runs locally via Docker volumes |
 | **Redis** | Caching Layer | Sub-millisecond data access |
 | **Apache Kafka** | Event Streaming | 1M+ messages/second throughput |
 | **Prometheus** | Monitoring | Real-time alerting system |
@@ -208,11 +210,11 @@ graph TB
 
 ```bash
 # 🎯 Current Production Status
-✅ AWS EKS Cluster: RUNNING (3 nodes, auto-scaling)
-✅ Frontend: DEPLOYED on Vercel with Global CDN
+✅ k3d Cluster: RUNNING locally (1 server + 2 agents)
+✅ Frontend: DEPLOYED on the Vercel/Netlify free tier
 ✅ Backend Services: 3 microservices, 9 pods total
-✅ Database: MongoDB Atlas with 99.9% availability
-✅ Monitoring: Prometheus + Grafana dashboards
+✅ Database: MongoDB Community + Redis via Docker volumes
+✅ Monitoring: Prometheus + Grafana (Docker Compose)
 ✅ Security: Pod Security Standards compliant
 ✅ Performance: 5,247 verifications/minute sustained
 ```
@@ -234,7 +236,7 @@ graph TB
 ✅ Docker & Docker Compose 24+
 ✅ Node.js 18+ & npm 9+
 ✅ Java 17+ & Maven 3.9+
-✅ kubectl & AWS CLI (for deployment)
+✅ kubectl & k3d/kind (for optional Kubernetes testing)
 ✅ Git 2.40+
 ```
 
@@ -255,7 +257,9 @@ docker-compose up -d
 
 ### **🚀 Production Deployment**
 ```bash
-# Deploy to AWS EKS
+# Deploy to k3d/kind (free Kubernetes)
+k3d cluster create supplychain-auth --servers 1 --agents 2
+kubectl config use-context k3d-supplychain-auth
 kubectl apply -f infra/k8s/namespace.yaml
 kubectl apply -f infra/k8s/
 
@@ -542,7 +546,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **☕ Spring Boot Team** - Excellent microservices framework
 - **⚛️ React Community** - Modern frontend innovation
 - **☸️ Kubernetes Community** - Container orchestration excellence
-- **☁️ AWS** - Reliable cloud infrastructure
+- **☁️ CNCF Ecosystem** - Reliable cloud-native infrastructure
 - **🔗 Ethereum Foundation** - Blockchain innovation platform
 - **🎓 Online Learning Platforms** - Knowledge and skill development
 - **👨‍💻 Open Source Community** - Inspiration and collaboration
