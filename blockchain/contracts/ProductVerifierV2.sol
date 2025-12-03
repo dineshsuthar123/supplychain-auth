@@ -2,15 +2,15 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
- * @title ProductVerifier
+ * @title ProductVerifierV2
  * @dev Advanced product verification with batch processing and gas optimization
  * Gas Optimized: ~23k gas per verification (40% reduction from standard approach)
  */
-contract ProductVerifier is Ownable, ReentrancyGuard {
+contract ProductVerifierV2 is Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
     
     // Packed struct for gas optimization
@@ -37,6 +37,8 @@ contract ProductVerifier is Ownable, ReentrancyGuard {
     
     // Gas optimization: packed arrays for batch operations
     uint256 private constant BATCH_SIZE = 50;
+
+    constructor() Ownable(msg.sender) {}
     
     /**
      * @dev Register a new manufacturer
