@@ -2,11 +2,20 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_BASE = process.env.REACT_APP_API_BASE || '';
+const PRODUCT_API_URL = process.env.REACT_APP_API_BASE_URL || `${API_BASE}/api/products`;
+const VERIFICATION_API_URL = process.env.REACT_APP_VERIFICATION_API_URL || `${API_BASE}/api/verify`;
+const METRICS_API_URL = process.env.REACT_APP_METRICS_API_URL || `${API_BASE}/actuator/metrics`;
 
-// Debug logging
+// Debug logging to confirm runtime wiring
 console.log('Environment variables:', {
     REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
-    API_BASE: API_BASE
+    REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+    REACT_APP_VERIFICATION_API_URL: process.env.REACT_APP_VERIFICATION_API_URL,
+    REACT_APP_METRICS_API_URL: process.env.REACT_APP_METRICS_API_URL,
+    API_BASE,
+    PRODUCT_API_URL,
+    VERIFICATION_API_URL,
+    METRICS_API_URL
 });
 
 const initialRegister = { name: '', manufacturer: '', batch: '', description: '', expiry: '', location: '' };
@@ -50,7 +59,7 @@ function App() {
                 manufacturer: registerData.manufacturer,
                 metadataUri: registerData.description || "N/A"
             };
-            const res = await axios.post(`${API_BASE}/api/products`, payload);
+            const res = await axios.post(PRODUCT_API_URL, payload);
             setRegisterResult({ ...res.data, success: true });
             setHistory([{ action: 'Registered', data: res.data, time: new Date().toLocaleString(), type: 'success' }, ...history]);
             setRegisterData(initialRegister);
@@ -65,7 +74,7 @@ function App() {
         setLoading(true);
         setVerifyResult(null);
         try {
-            const res = await axios.get(`${API_BASE}/api/verify/${productId}`);
+            const res = await axios.get(`${VERIFICATION_API_URL}/${productId}`);
             setVerifyResult({ ...res.data, success: true });
             setHistory([{ action: 'Verified', data: res.data, time: new Date().toLocaleString(), type: 'success' }, ...history]);
         } catch (err) {
@@ -96,7 +105,7 @@ function App() {
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                const response = await axios.get(`${API_BASE}/actuator/metrics`);
+                const response = await axios.get(METRICS_API_URL);
                 // Update metrics from actuator endpoint
                 setMetrics(prev => ({
                     ...prev,

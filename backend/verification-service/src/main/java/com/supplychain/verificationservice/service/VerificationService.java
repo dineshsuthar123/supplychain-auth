@@ -5,56 +5,73 @@ import com.supplychain.verificationservice.dto.VerificationResponse;
 import com.supplychain.verificationservice.entity.VerificationLog;
 import com.supplychain.verificationservice.repository.VerificationLogRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-import org.web3j.protocol.Web3j;
-import org.web3j.crypto.Credentials;
+
 import java.time.Instant;
+import java.util.Optional;
+
+import static org.springframework.util.StringUtils.hasText;
 
 @Service
 @RequiredArgsConstructor
 public class VerificationService {
     private final VerificationLogRepository logRepository;
-    private final RedisTemplate<String, Boolean> redisTemplate;
-    private final Web3j web3j;
-    private final Credentials credentials;
-    // private final ProductVerifier productVerifier; // web3j wrapper    @Cacheable(value = "verifications", key = "#request.productSerialNumber")
-    public VerificationResponse verifyProduct(VerificationRequest request) {
-        try {
-            // 1. Check Redis cache (handled by @Cacheable)
-            // 2. Call blockchain contract (stubbed)
-            boolean verified = true; // TODO: Call ProductVerifier.verifyProduct(...)
-            String txHash = "0x0"; // TODO: Get tx hash from blockchain
+    // Redis and Web3 wiring are omitted until real verification is implemented
 
-            // 3. Log to MongoDB
-            VerificationLog log = VerificationLog.builder()
+    public VerificationResponse verifyProduct(VerificationRequest request) {
+        if (request == null || !hasText(request.getProductSerialNumber())) {
+            throw new IllegalArgumentException("productSerialNumber is required");
+        }
+
+        // TODO: Integrate real verification logic (smart contract / ZKP)
+        boolean verified = hasText(request.getZkProof());
+        String txHash = verified ? "pending" : null;
+
+        try {
+            VerificationLog log = logRepository.save(VerificationLog.builder()
                     .productSerialNumber(request.getProductSerialNumber())
                     .verifier("verifier-address")
                     .verified(verified)
                     .verifiedAt(Instant.now())
                     .zkProof(request.getZkProof())
                     .blockchainTxHash(txHash)
-                    .build();
-            logRepository.save(log);
+                    .build());
 
-            // 4. Build response
             VerificationResponse response = new VerificationResponse();
-            response.setVerified(verified);
-            response.setVerifier("verifier-address");
+            response.setVerified(log.isVerified());
+            response.setVerifier(log.getVerifier());
             response.setVerifiedAt(log.getVerifiedAt());
-            response.setBlockchainTxHash(txHash);
+            response.setBlockchainTxHash(log.getBlockchainTxHash());
+            response.setProductSerialNumber(log.getProductSerialNumber());
+            response.setMessage(verified ? "Verification recorded" : "Verification pending / not proven");
             return response;
         } catch (Exception e) {
-            // MongoDB connection failed - return mock response for testing
             VerificationResponse response = new VerificationResponse();
-            response.setVerified(true);
-            response.setVerifier("mock-verifier");
+            response.setVerified(false);
+            response.setVerifier("unverified");
             response.setVerifiedAt(Instant.now());
-            response.setBlockchainTxHash("0x123mock");
+            response.setBlockchainTxHash(null);
             response.setProductSerialNumber(request.getProductSerialNumber());
-            response.setMessage("Mock verification - MongoDB unavailable: " + e.getMessage());
+            response.setMessage("Verification failed: " + e.getMessage());
             return response;
         }
+    }
+
+    public Optional<VerificationResponse> getLatestVerification(String serialNumber) {
+        if (!hasText(serialNumber)) {
+            return Optional.empty();
+        }
+
+        return logRepository.findFirstByProductSerialNumberOrderByVerifiedAtDesc(serialNumber)
+                .map(log -> {
+                    VerificationResponse response = new VerificationResponse();
+                    response.setVerified(log.isVerified());
+                    response.setVerifier(log.getVerifier());
+                    response.setVerifiedAt(log.getVerifiedAt());
+                    response.setBlockchainTxHash(log.getBlockchainTxHash());
+                    response.setProductSerialNumber(log.getProductSerialNumber());
+                    response.setMessage("Latest verification log");
+                    return response;
+                });
     }
 }
