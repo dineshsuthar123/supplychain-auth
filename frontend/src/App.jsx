@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_BASE = process.env.REACT_APP_API_BASE || '';
-const PRODUCT_API_URL = process.env.REACT_APP_API_BASE_URL || `${API_BASE}/api/products`;
-const VERIFICATION_API_URL = process.env.REACT_APP_VERIFICATION_API_URL || `${API_BASE}/api/verify`;
+const PRODUCT_API_URL = process.env.REACT_APP_API_BASE_URL
+    || process.env.REACT_APP_API_PRODUCTS_URL
+    || `${API_BASE}/api/products`;
+const VERIFICATION_API_URL = process.env.REACT_APP_VERIFICATION_API_URL
+    || process.env.REACT_APP_API_VERIFICATION_URL
+    || `${API_BASE}/api/verify`;
 const METRICS_API_URL = process.env.REACT_APP_METRICS_API_URL || `${API_BASE}/actuator/metrics`;
 
 // Debug logging to confirm runtime wiring
@@ -11,6 +15,7 @@ console.log('Environment variables:', {
     REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
     REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
     REACT_APP_VERIFICATION_API_URL: process.env.REACT_APP_VERIFICATION_API_URL,
+    REACT_APP_API_VERIFICATION_URL: process.env.REACT_APP_API_VERIFICATION_URL,
     REACT_APP_METRICS_API_URL: process.env.REACT_APP_METRICS_API_URL,
     API_BASE,
     PRODUCT_API_URL,
@@ -69,12 +74,12 @@ function App() {
             setHistory([{ action: 'Registration Failed', data: { error: errorMessage }, time: new Date().toLocaleString(), type: 'error' }, ...history]);
         }
         setLoading(false);
-    }; const handleVerify = async (e) => {
+    const handleVerify = async (e) => {
         e.preventDefault();
         setLoading(true);
         setVerifyResult(null);
         try {
-            const res = await axios.get(`${VERIFICATION_API_URL}/${productId}`);
+            const res = await axios.post(VERIFICATION_API_URL, { productSerialNumber: productId });
             setVerifyResult({ ...res.data, success: true });
             setHistory([{ action: 'Verified', data: res.data, time: new Date().toLocaleString(), type: 'success' }, ...history]);
         } catch (err) {
