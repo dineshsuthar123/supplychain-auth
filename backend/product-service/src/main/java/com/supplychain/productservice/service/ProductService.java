@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.web3j.protocol.Web3j;
 import org.web3j.crypto.Credentials;
 import java.time.Instant;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,7 @@ public class ProductService {
     private final Credentials credentials;
     // private final ProductNFT productNFT; // Generated web3j wrapper for ProductNFT
 
+    @Transactional
     public ProductResponse registerProduct(ProductRegistrationRequest request) {
         // 1. Check if product with this serial number already exists
         if (productRepository.findBySerialNumber(request.getSerialNumber()).isPresent()) {
@@ -31,13 +33,15 @@ public class ProductService {
                 .manufacturer(request.getManufacturer())
                 .metadataUri(request.getMetadataUri())
                 .registeredAt(Instant.now())
+                // TODO: Set real token id once minting is integrated
+                .nftTokenId("pending")
                 .build();
-        product = productRepository.save(product);
 
-        // 2. Mint NFT on blockchain (stubbed, to be implemented with web3j wrapper)
-        String nftTokenId = "0"; // TODO: Call ProductNFT.mintProduct(...)
-        product.setNftTokenId(nftTokenId);
-        productRepository.save(product);
+        // Mint NFT on blockchain (stubbed, to be implemented with web3j wrapper)
+        // String nftTokenId = productNft.mintProduct(...);
+        // product.setNftTokenId(nftTokenId);
+
+        product = productRepository.save(product);
 
         // 3. Build response
         ProductResponse response = new ProductResponse();

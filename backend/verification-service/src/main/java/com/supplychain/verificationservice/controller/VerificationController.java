@@ -21,9 +21,8 @@ public class VerificationController {
 
     @GetMapping("/{serialNumber}")
     public ResponseEntity<VerificationResponse> getVerification(@PathVariable String serialNumber) {
-        VerificationRequest request = new VerificationRequest();
-        request.setProductSerialNumber(serialNumber); // Lombok @Data provides setter
-        VerificationResponse response = verificationService.verifyProduct(request);
-        return ResponseEntity.ok(response);
+        return verificationService.getLatestVerification(serialNumber)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }
