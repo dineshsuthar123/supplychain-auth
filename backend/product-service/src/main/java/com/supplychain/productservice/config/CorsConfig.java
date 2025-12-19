@@ -7,6 +7,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 public class CorsConfig {
@@ -15,20 +16,22 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow all origins for development (in production, specify your Vercel domain)
-        configuration.addAllowedOriginPattern("*");
-        configuration.setAllowedOrigins(Arrays.asList(
+        // Use allowedOriginPatterns instead of allowedOrigins when allowCredentials is true
+        configuration.setAllowedOriginPatterns(List.of(
             "https://supplychain-auth-pro.vercel.app",
-            "https://supplychain-auth-dkuqb932e-dineshs-projects-231eafe3.vercel.app",
             "https://*.vercel.app",
             "http://localhost:3000",
-            "http://localhost:8080"
+            "http://localhost:8080",
+            "*"
         ));
         
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         
         return new CorsFilter(source);

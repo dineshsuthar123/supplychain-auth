@@ -21,7 +21,6 @@ import java.util.Optional;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*", allowedHeaders = "*", allowCredentials = "true")
 public class AuthController {
 
     private final AuthService authService;
