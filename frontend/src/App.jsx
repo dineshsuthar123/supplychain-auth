@@ -53,6 +53,7 @@ function App() {
         e.preventDefault();
         setLoading(true);
         setRegisterResult(null);
+        const startTime = Date.now();
         try {
             // Generate unique serial number if batch is provided
             const serialNumber = registerData.manufacturer && registerData.batch
@@ -66,10 +67,15 @@ function App() {
                 metadataUri: registerData.description || "N/A"
             };
             const res = await axios.post(PRODUCT_API_URL, payload);
-            setRegisterResult({ ...res.data, success: true });
+            const elapsed = Date.now() - startTime;
+            setRequestTimes(prev => [...prev.slice(-19), elapsed]);
+            setLastUpdated(new Date().toLocaleTimeString());
+            setRegisterResult({ ...res.data, success: true, responseTime: elapsed });
             setHistory([{ action: 'Registered', data: res.data, time: new Date().toLocaleString(), type: 'success' }, ...history]);
             setRegisterData(initialRegister);
         } catch (err) {
+            const elapsed = Date.now() - startTime;
+            setRequestTimes(prev => [...prev.slice(-19), elapsed]);
             const errorMessage = err.response?.data?.message || err.response?.data?.code || 'Registration failed';
             setRegisterResult({ error: errorMessage, success: false });
             setHistory([{ action: 'Registration Failed', data: { error: errorMessage }, time: new Date().toLocaleString(), type: 'error' }, ...history]);
@@ -81,11 +87,17 @@ function App() {
         e.preventDefault();
         setLoading(true);
         setVerifyResult(null);
+        const startTime = Date.now();
         try {
             const res = await axios.post(VERIFICATION_API_URL, { productSerialNumber: productId });
-            setVerifyResult({ ...res.data, success: true });
+            const elapsed = Date.now() - startTime;
+            setRequestTimes(prev => [...prev.slice(-19), elapsed]);
+            setLastUpdated(new Date().toLocaleTimeString());
+            setVerifyResult({ ...res.data, success: true, responseTime: elapsed });
             setHistory([{ action: 'Verified', data: res.data, time: new Date().toLocaleString(), type: 'success' }, ...history]);
         } catch (err) {
+            const elapsed = Date.now() - startTime;
+            setRequestTimes(prev => [...prev.slice(-19), elapsed]);
             const errorMessage = err.response?.data?.message || 'Verification failed';
             setVerifyResult({ error: errorMessage, success: false });
             setHistory([{ action: 'Verification Failed', data: { error: errorMessage }, time: new Date().toLocaleString(), type: 'error' }, ...history]);
@@ -113,28 +125,50 @@ function App() {
         setProductId('');
     }, [tab]);
 
-    // Load performance metrics
+    // Real-time performance metrics tracking
+    const [requestTimes, setRequestTimes] = useState([]);
+    const [lastUpdated, setLastUpdated] = useState(null);
+
+    // Calculate real metrics from history
     useEffect(() => {
-        const fetchMetrics = async () => {
+        const successCount = history.filter(h => h.type === 'success').length;
+        const totalCount = history.length;
+        const verifyCount = history.filter(h => h.action === 'Verified' || h.action === 'Verification Failed').length;
+        const registerCount = history.filter(h => h.action === 'Registered' || h.action === 'Registration Failed').length;
+        
+        const avgResponseTime = requestTimes.length > 0 
+            ? requestTimes.reduce((a, b) => a + b, 0) / requestTimes.length 
+            : 0;
+
+        setMetrics({
+            totalVerifications: verifyCount,
+            totalRegistrations: registerCount,
+            averageResponseTime: Math.round(avgResponseTime),
+            successRate: totalCount > 0 ? Math.round((successCount / totalCount) * 1000) / 10 : 100,
+            blockchainStatus: 'connected',
+            lastUpdated: lastUpdated
+        });
+    }, [history, requestTimes, lastUpdated]);
+
+    // Periodic health check
+    useEffect(() => {
+        const checkHealth = async () => {
             try {
-                const response = await axios.get(METRICS_API_URL);
-                // Update metrics from actuator endpoint
-                setMetrics(prev => ({
-                    ...prev,
-                    totalVerifications: history.length,
-                    averageResponseTime: Math.random() * 200 + 150, // Mock for demo
-                    successRate: 99.7,
-                    blockchainStatus: 'connected'
-                }));
+                const start = Date.now();
+                await axios.get(`${API_BASE}/actuator/health`, { timeout: 5000 });
+                const elapsed = Date.now() - start;
+                setRequestTimes(prev => [...prev.slice(-19), elapsed]);
+                setLastUpdated(new Date().toLocaleTimeString());
+                setMetrics(prev => ({ ...prev, blockchainStatus: 'connected' }));
             } catch (error) {
-                console.log('Metrics not available:', error.message);
+                setMetrics(prev => ({ ...prev, blockchainStatus: 'disconnected' }));
             }
         };
 
-        fetchMetrics();
-        const interval = setInterval(fetchMetrics, 30000); // Update every 30 seconds
+        checkHealth();
+        const interval = setInterval(checkHealth, 10000); // Check every 10 seconds
         return () => clearInterval(interval);
-    }, [history]);
+    }, []);
 
     const theme = {
         bg: darkMode ? '#0f172a' : '#ffffff',
@@ -670,7 +704,7 @@ function App() {
                                     gap: '20px',
                                     marginBottom: '32px'
                                 }}>
-                                    {/* Throughput Metric */}
+                                    {/* Total Registrations */}
                                     <div style={{
                                         background: theme.surface,
                                         borderRadius: '16px',
@@ -680,19 +714,45 @@ function App() {
                                         overflow: 'hidden'
                                     }}>
                                         <div style={{ position: 'absolute', top: 0, right: 0, padding: '16px', fontSize: '2rem', opacity: 0.1 }}>
-                                            📈
+                                            📝
                                         </div>
                                         <h3 style={{ color: theme.text, margin: '0 0 8px 0', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            Verification Throughput
+                                            Total Registrations
                                         </h3>
                                         <div style={{ color: theme.primary, fontSize: '2rem', fontWeight: '700', margin: '8px 0' }}>
-                                            5.2k
+                                            {metrics.totalRegistrations || 0}
                                         </div>
                                         <div style={{ color: theme.textSecondary, fontSize: '0.875rem' }}>
-                                            verifications/minute
+                                            products registered
                                         </div>
                                         <div style={{ marginTop: '12px', color: theme.success, fontSize: '0.75rem', fontWeight: '600' }}>
-                                            ↗️ +15% from last hour
+                                            {metrics.lastUpdated ? `Updated: ${metrics.lastUpdated}` : 'Live tracking'}
+                                        </div>
+                                    </div>
+
+                                    {/* Total Verifications */}
+                                    <div style={{
+                                        background: theme.surface,
+                                        borderRadius: '16px',
+                                        padding: '24px',
+                                        border: `1px solid ${theme.border}`,
+                                        position: 'relative',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{ position: 'absolute', top: 0, right: 0, padding: '16px', fontSize: '2rem', opacity: 0.1 }}>
+                                            🔍
+                                        </div>
+                                        <h3 style={{ color: theme.text, margin: '0 0 8px 0', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Total Verifications
+                                        </h3>
+                                        <div style={{ color: theme.primary, fontSize: '2rem', fontWeight: '700', margin: '8px 0' }}>
+                                            {metrics.totalVerifications || 0}
+                                        </div>
+                                        <div style={{ color: theme.textSecondary, fontSize: '0.875rem' }}>
+                                            products verified
+                                        </div>
+                                        <div style={{ marginTop: '12px', color: theme.success, fontSize: '0.75rem', fontWeight: '600' }}>
+                                            Real-time count
                                         </div>
                                     </div>
 
@@ -709,16 +769,16 @@ function App() {
                                             ⚡
                                         </div>
                                         <h3 style={{ color: theme.text, margin: '0 0 8px 0', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            P95 Response Time
+                                            Avg Response Time
                                         </h3>
                                         <div style={{ color: theme.primary, fontSize: '2rem', fontWeight: '700', margin: '8px 0' }}>
-                                            {Math.round(metrics.averageResponseTime)}ms
+                                            {metrics.averageResponseTime || 0}ms
                                         </div>
                                         <div style={{ color: theme.textSecondary, fontSize: '0.875rem' }}>
                                             target: &lt;400ms
                                         </div>
-                                        <div style={{ marginTop: '12px', color: theme.success, fontSize: '0.75rem', fontWeight: '600' }}>
-                                            ✅ Within SLA
+                                        <div style={{ marginTop: '12px', color: metrics.averageResponseTime < 400 ? theme.success : theme.warning, fontSize: '0.75rem', fontWeight: '600' }}>
+                                            {metrics.averageResponseTime < 400 ? '✅ Within SLA' : '⚠️ Above target'}
                                         </div>
                                     </div>
 
@@ -737,14 +797,14 @@ function App() {
                                         <h3 style={{ color: theme.text, margin: '0 0 8px 0', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                             Success Rate
                                         </h3>
-                                        <div style={{ color: theme.success, fontSize: '2rem', fontWeight: '700', margin: '8px 0' }}>
+                                        <div style={{ color: metrics.successRate >= 95 ? theme.success : theme.warning, fontSize: '2rem', fontWeight: '700', margin: '8px 0' }}>
                                             {metrics.successRate}%
                                         </div>
                                         <div style={{ color: theme.textSecondary, fontSize: '0.875rem' }}>
-                                            last 24 hours
+                                            this session
                                         </div>
-                                        <div style={{ marginTop: '12px', color: theme.success, fontSize: '0.75rem', fontWeight: '600' }}>
-                                            🟢 Excellent
+                                        <div style={{ marginTop: '12px', color: metrics.successRate >= 95 ? theme.success : theme.warning, fontSize: '0.75rem', fontWeight: '600' }}>
+                                            {metrics.successRate >= 95 ? '🟢 Excellent' : metrics.successRate >= 80 ? '🟡 Good' : '🔴 Needs attention'}
                                         </div>
                                     </div>
 

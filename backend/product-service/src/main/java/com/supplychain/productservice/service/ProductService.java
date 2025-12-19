@@ -5,6 +5,7 @@ import com.supplychain.productservice.dto.ProductResponse;
 import com.supplychain.productservice.entity.Product;
 import com.supplychain.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.web3j.protocol.Web3j;
 import org.web3j.crypto.Credentials;
@@ -12,11 +13,19 @@ import java.time.Instant;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class ProductService {
     private final ProductRepository productRepository;
     private final Web3j web3j;
     private final Credentials credentials;
+
+    @Autowired
+    public ProductService(ProductRepository productRepository,
+                          @Autowired(required = false) Web3j web3j,
+                          @Autowired(required = false) Credentials credentials) {
+        this.productRepository = productRepository;
+        this.web3j = web3j;
+        this.credentials = credentials;
+    }
     // private final ProductNFT productNFT; // Generated web3j wrapper for ProductNFT
 
     @Transactional
