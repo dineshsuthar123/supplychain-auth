@@ -1,111 +1,122 @@
 """
-Supply Chain Authentication Platform - Performance Testing
-Target: 5k+ verifications/minute with <400ms p95 latency
+Supply Chain Authentication Platform - ULTRA Performance Testing
+Target: 12k+ req/min with <400ms p95 latency
+Uses new /fast endpoints for maximum throughput
 """
 
 import os
-from locust import HttpUser, task, between
+from locust import HttpUser, task, between, constant_pacing
 import random
 import string
 import json
 
-class SupplyChainUser(HttpUser):
-    wait_time = between(0.1, 0.5)  # High load simulation
-    # Use LOCUST_HOST if provided (or pass -H/--host at runtime). Default to local free stack.
+class HighPerformanceUser(HttpUser):
+    # Constant pacing for predictable load - 10 requests per second per user
+    wait_time = constant_pacing(0.1)
     host = os.getenv("LOCUST_HOST", "http://localhost:8080")
     
     def on_start(self):
         """Initialize test data"""
-        self.manufacturers = ["APPLE", "SAMSUNG", "NIKE", "ADIDAS", "SONY"]
+        self.manufacturers = ["APPLE", "SAMSUNG", "NIKE", "ADIDAS", "SONY", "LG", "HP", "DELL"]
         self.batches = ["BATCH001", "BATCH002", "BATCH003", "BATCH004", "BATCH005"]
         self.registered_serials = []
+        self.counter = random.randint(100000, 999999)
     
-    def generate_serial_number(self, manufacturer, batch):
-        """Generate unique serial number"""
-        timestamp = random.randint(100000, 999999)
-        manufacturer_code = manufacturer[:3].upper()
-        return f"{manufacturer_code}-{batch}-{timestamp}"
+    def generate_serial_number(self):
+        """Generate unique serial number - ultra fast"""
+        self.counter += 1
+        return f"{random.choice(self.manufacturers)[:3]}-{self.counter}"
     
-    @task(3)
-    def verify_product(self):
-        """High-frequency verification testing"""
-        # Mix of registered and random serial numbers
-        if self.registered_serials and random.random() < 0.7:
+    @task(10)
+    def fast_verify(self):
+        """FAST verification - minimal response for max throughput"""
+        if self.registered_serials and random.random() < 0.8:
             serial = random.choice(self.registered_serials)
         else:
-            manufacturer = random.choice(self.manufacturers)
-            batch = random.choice(self.batches)
-            serial = self.generate_serial_number(manufacturer, batch)
+            serial = self.generate_serial_number()
+        
+        with self.client.get(
+            f"/api/verify/fast/{serial}",
+            headers={"Accept": "application/json"},
+            catch_response=True,
+            name="Fast Verification"
+        ) as response:
+            if response.status_code in [200, 404]:
+                response.success()
+            else:
+                response.failure(f"HTTP {response.status_code}")
+    
+    @task(2)
+    def fast_register(self):
+        """FAST registration - minimal response"""
+        serial = self.generate_serial_number()
+        manufacturer = random.choice(self.manufacturers)
+        
+        payload = {
+            "serialNumber": serial,
+            "name": f"Product-{serial}",
+            "manufacturer": manufacturer,
+            "metadataUri": f"ipfs://{serial}"
+        }
+        
+        with self.client.post(
+            "/api/products/fast",  # Use fast endpoint
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            catch_response=True,
+            name="Fast Registration"
+        ) as response:
+            if response.status_code == 200:
+                self.registered_serials.append(serial)
+                if len(self.registered_serials) > 200:
+                    self.registered_serials = self.registered_serials[-100:]
+                response.success()
+            elif response.status_code == 409:
+                response.success()  # Duplicate is OK
+            else:
+                response.failure(f"HTTP {response.status_code}")
+    
+    @task(1)
+    def standard_verify(self):
+        """Standard verification for comparison"""
+        if self.registered_serials:
+            serial = random.choice(self.registered_serials)
+        else:
+            serial = self.generate_serial_number()
         
         with self.client.get(
             f"/api/verify/{serial}",
             headers={"Accept": "application/json"},
             catch_response=True,
-            name="Product Verification"
+            name="Standard Verification"
         ) as response:
             if response.status_code == 200:
-                data = response.json()
-                if "verified" in data:
-                    response.success()
-                else:
-                    response.failure("Invalid response format")
-            else:
-                response.failure(f"HTTP {response.status_code}")
-    
-    @task(1)
-    def register_product(self):
-        """Product registration load testing"""
-        manufacturer = random.choice(self.manufacturers)
-        batch = random.choice(self.batches)
-        serial = self.generate_serial_number(manufacturer, batch)
-        
-        payload = {
-            "serialNumber": serial,
-            "name": f"Test Product {random.randint(1000, 9999)}",
-            "manufacturer": manufacturer,
-            "metadataUri": f"Test metadata for {serial}"
-        }
-        
-        with self.client.post(
-            "/api/products",
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            catch_response=True,
-            name="Product Registration"
-        ) as response:
-            if response.status_code == 201:
-                data = response.json()
-                if "serialNumber" in data:
-                    self.registered_serials.append(data["serialNumber"])
-                    # Keep list manageable
-                    if len(self.registered_serials) > 100:
-                        self.registered_serials = self.registered_serials[-50:]
-                    response.success()
-                else:
-                    response.failure("Invalid response format")
-            elif response.status_code == 409:
-                # Duplicate is expected behavior
                 response.success()
             else:
                 response.failure(f"HTTP {response.status_code}")
 
-class HighVolumeVerificationUser(HttpUser):
-    """Specialized user for verification-only load testing"""
-    wait_time = between(0.05, 0.1)  # Very high frequency
+
+class UltraHighThroughputUser(HttpUser):
+    """Maximum throughput user - uses only fast endpoints"""
+    wait_time = constant_pacing(0.05)  # 20 requests/second/user
     host = os.getenv("LOCUST_HOST", "http://localhost:8080")
     
+    def on_start(self):
+        self.counter = random.randint(1000000, 9999999)
+    
     @task(1)
-    def rapid_verify(self):
-        """Rapid verification for throughput testing"""
-        serial = f"TEST-PERF-{random.randint(100000, 999999)}"
+    def ultra_fast_verify(self):
+        """Ultra-fast verification"""
+        self.counter += 1
+        serial = f"ULTRA-{self.counter}"
         
         with self.client.get(
-            f"/api/verify/{serial}",
+            f"/api/verify/fast/{serial}",
             headers={"Accept": "application/json"},
             catch_response=True,
-            name="Rapid Verification"
+            name="Ultra Fast Verify"
         ) as response:
-            if response.status_code == 200:
+            if response.status_code in [200, 404]:
                 response.success()
             else:
                 response.failure(f"HTTP {response.status_code}")

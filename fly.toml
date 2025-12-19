@@ -1,0 +1,33 @@
+# Fly.io Deployment Configuration
+# Free tier: 3 shared-cpu-1x VMs, 256MB RAM each
+# Deploy with: flyctl launch --dockerfile backend/product-service/Dockerfile
+
+app = "supplychain-auth-api"
+primary_region = "iad"  # US East (Virginia)
+
+[build]
+  dockerfile = "backend/product-service/Dockerfile"
+
+[env]
+  SPRING_PROFILES_ACTIVE = "prod"
+  JAVA_OPTS = "-Xmx384m -XX:+UseG1GC"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "30s"
+  method = "GET"
+  timeout = "10s"
+  path = "/api/verify/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

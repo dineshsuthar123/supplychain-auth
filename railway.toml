@@ -1,0 +1,16 @@
+# Railway Deployment Configuration
+# Railway provides $5 free credits/month - enough for hobby projects
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "backend/product-service/Dockerfile"
+
+[deploy]
+startCommand = "java -Xmx512m -jar /app/app.jar"
+healthcheckPath = "/api/verify/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[[services]]
+name = "supplychain-api"
+internalPort = 8080
