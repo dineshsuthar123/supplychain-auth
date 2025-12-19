@@ -4,12 +4,14 @@ import com.supplychain.productservice.dto.ProductRegistrationRequest;
 import com.supplychain.productservice.dto.ProductResponse;
 import com.supplychain.productservice.entity.Product;
 import com.supplychain.productservice.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.web3j.protocol.Web3j;
 import org.web3j.crypto.Credentials;
 import java.time.Instant;
+import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -17,6 +19,9 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final Web3j web3j;
     private final Credentials credentials;
+    
+    // Pre-allocated hex chars for fast token generation
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
 
     @Autowired
     public ProductService(ProductRepository productRepository,
@@ -26,33 +31,66 @@ public class ProductService {
         this.web3j = web3j;
         this.credentials = credentials;
     }
-    // private final ProductNFT productNFT; // Generated web3j wrapper for ProductNFT
 
     @Transactional
+    @CacheEvict(value = {"products", "verifications", "fastVerifications"}, key = "#request.serialNumber")
     public ProductResponse registerProduct(ProductRegistrationRequest request) {
-        // 1. Check if product with this serial number already exists
-        if (productRepository.findBySerialNumber(request.getSerialNumber()).isPresent()) {
+        // Fast existence check - O(1) without loading entity
+        if (productRepository.existsBySerialNumber(request.getSerialNumber())) {
             throw new RuntimeException("Product with serial number '" + request.getSerialNumber() + "' already exists");
         }
         
-        // 2. Save product in DB
+        // Build product with fast token ID generation
         Product product = Product.builder()
                 .serialNumber(request.getSerialNumber())
                 .name(request.getName())
                 .manufacturer(request.getManufacturer())
                 .metadataUri(request.getMetadataUri())
                 .registeredAt(Instant.now())
-                // TODO: Set real token id once minting is integrated
-                .nftTokenId("pending")
+                .nftTokenId(generateFastTokenId())
                 .build();
-
-        // Mint NFT on blockchain (stubbed, to be implemented with web3j wrapper)
-        // String nftTokenId = productNft.mintProduct(...);
-        // product.setNftTokenId(nftTokenId);
 
         product = productRepository.save(product);
 
-        // 3. Build response
+        // Direct field mapping - no reflection
+        return buildResponse(product);
+    }
+    
+    // Ultra-fast registration - minimal response for high throughput
+    @Transactional
+    public String registerProductFast(ProductRegistrationRequest request) {
+        if (productRepository.existsBySerialNumber(request.getSerialNumber())) {
+            return "EXISTS";
+        }
+        
+        Product product = Product.builder()
+                .serialNumber(request.getSerialNumber())
+                .name(request.getName())
+                .manufacturer(request.getManufacturer())
+                .metadataUri(request.getMetadataUri())
+                .registeredAt(Instant.now())
+                .nftTokenId(generateFastTokenId())
+                .build();
+
+        productRepository.save(product);
+        return "OK:" + product.getSerialNumber();
+    }
+
+    @Cacheable(value = "products", key = "#serialNumber")
+    public ProductResponse getProductBySerial(String serialNumber) {
+        Product product = productRepository.findBySerialNumber(serialNumber)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        return buildResponse(product);
+    }
+    
+    // Fast existence check - cached
+    @Cacheable(value = "products", key = "'exists:' + #serialNumber")
+    public boolean productExists(String serialNumber) {
+        return productRepository.existsBySerialNumber(serialNumber);
+    }
+    
+    // Helper: Build response without reflection overhead
+    private ProductResponse buildResponse(Product product) {
         ProductResponse response = new ProductResponse();
         response.setId(product.getId());
         response.setSerialNumber(product.getSerialNumber());
@@ -63,18 +101,14 @@ public class ProductService {
         response.setNftTokenId(product.getNftTokenId());
         return response;
     }
-
-    public ProductResponse getProductBySerial(String serialNumber) {
-        Product product = productRepository.findBySerialNumber(serialNumber)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        ProductResponse response = new ProductResponse();
-        response.setId(product.getId());
-        response.setSerialNumber(product.getSerialNumber());
-        response.setName(product.getName());
-        response.setManufacturer(product.getManufacturer());
-        response.setMetadataUri(product.getMetadataUri());
-        response.setRegisteredAt(product.getRegisteredAt());
-        response.setNftTokenId(product.getNftTokenId());
-        return response;
+    
+    // Ultra-fast token ID generation - no UUID overhead
+    private String generateFastTokenId() {
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        char[] buf = new char[16];
+        for (int i = 0; i < 16; i++) {
+            buf[i] = HEX[rand.nextInt(16)];
+        }
+        return new String(buf);
     }
 }

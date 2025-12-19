@@ -6,48 +6,87 @@ import com.supplychain.productservice.entity.Product;
 import com.supplychain.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * High-performance verification service with caching.
+ * Target: <100ms response time for cached lookups.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class VerificationService {
     
     private final ProductRepository productRepository;
+    
+    // Pre-generated hex chars for fast txHash generation
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
 
+    /**
+     * Verify product - cached for repeat lookups.
+     * Cache key: serialNumber, TTL: 60 seconds
+     */
+    @Cacheable(value = "verifications", key = "#request.productSerialNumber", unless = "#result == null")
     public VerificationResponse verifyProduct(VerificationRequest request) {
         String serialNumber = request.getProductSerialNumber();
-        log.info("Verifying product with serial: {}", serialNumber);
         
         Optional<Product> productOpt = productRepository.findBySerialNumber(serialNumber);
         
         if (productOpt.isEmpty()) {
-            log.warn("Product not found for serial: {}", serialNumber);
-            throw new RuntimeException("Product with serial number '" + serialNumber + "' not found");
+            throw new RuntimeException("Product not found: " + serialNumber);
         }
         
         Product product = productOpt.get();
-        log.info("Product found: id={}, name={}", product.getId(), product.getName());
-        
-        // Generate verification proof
-        String verificationId = UUID.randomUUID().toString();
-        String txHash = "0x" + UUID.randomUUID().toString().replace("-", "");
-        long blockNumber = System.currentTimeMillis() / 1000;
         
         return VerificationResponse.builder()
                 .productSerialNumber(product.getSerialNumber())
                 .productName(product.getName())
                 .manufacturer(product.getManufacturer())
-                .verified(true)  // Product exists = verified
+                .verified(true)
                 .verifiedAt(Instant.now())
-                .transactionHash(txHash)
-                .blockNumber(blockNumber)
-                .verificationId(verificationId)
-                .message("Product verified successfully - Authentic product found in blockchain registry")
+                .transactionHash(generateFastTxHash())
+                .blockNumber(System.currentTimeMillis() / 1000)
+                .verificationId(generateFastId())
+                .message("Verified")
                 .build();
+    }
+    
+    /**
+     * Fast verification - minimal response for high throughput.
+     */
+    @Cacheable(value = "fastVerifications", key = "#serialNumber")
+    public VerificationResponse verifyFast(String serialNumber) {
+        boolean exists = productRepository.existsBySerialNumber(serialNumber);
+        
+        return VerificationResponse.builder()
+                .productSerialNumber(serialNumber)
+                .verified(exists)
+                .verifiedAt(Instant.now())
+                .transactionHash(exists ? generateFastTxHash() : null)
+                .blockNumber(exists ? System.currentTimeMillis() / 1000 : 0)
+                .message(exists ? "Verified" : "Not found")
+                .build();
+    }
+    
+    // Ultra-fast txHash generation (no UUID overhead)
+    private String generateFastTxHash() {
+        StringBuilder sb = new StringBuilder(66);
+        sb.append("0x");
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int i = 0; i < 64; i++) {
+            sb.append(HEX_CHARS[random.nextInt(16)]);
+        }
+        return sb.toString();
+    }
+    
+    // Fast ID generation using timestamp + random
+    private String generateFastId() {
+        return Long.toHexString(System.currentTimeMillis()) + 
+               Long.toHexString(ThreadLocalRandom.current().nextLong());
     }
 }
