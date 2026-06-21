@@ -2,12 +2,15 @@ package com.supplychain.productservice.service;
 
 import com.supplychain.productservice.dto.*;
 import com.supplychain.productservice.entity.User;
+import com.supplychain.productservice.entity.Tenant;
 import com.supplychain.productservice.repository.UserRepository;
+import com.supplychain.productservice.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -23,7 +26,10 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    @Value("${supplyprint.auth.allow-self-service-operator-roles:false}")
+    private boolean allowSelfServiceOperatorRoles;
 
     // In-memory nonce store (in production, use Redis)
     private final Map<String, Instant> nonceStore = new ConcurrentHashMap<>();
@@ -44,13 +50,13 @@ public class AuthService {
         }
 
         // Validate role
-        String role = request.getRole() != null ? request.getRole().toUpperCase() : "USER";
-        if (!role.matches("USER|MANUFACTURER|VERIFIER")) {
-            role = "USER";
-        }
+        String requestedRole = request.getRole() != null ? request.getRole().toUpperCase() : "USER";
+        String role = allowSelfServiceOperatorRoles && requestedRole.matches("MANUFACTURER|VERIFIER") ? requestedRole : "USER";
 
         // Create user
+        Tenant tenant = tenantRepository.save(new Tenant(request.getCompany() != null && !request.getCompany().isBlank() ? request.getCompany() + "-" + UUID.randomUUID() : request.getUsername() + "-" + UUID.randomUUID()));
         User user = User.builder()
+                .tenantId(tenant.getId())
                 .email(request.getEmail())
                 .username(request.getUsername())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -120,7 +126,9 @@ public class AuthService {
         User user = userRepository.findByWalletAddress(request.getWalletAddress())
                 .orElseGet(() -> {
                     // Create new user for this wallet
+                    Tenant tenant = tenantRepository.save(new Tenant("wallet-" + UUID.randomUUID()));
                     User newUser = User.builder()
+                            .tenantId(tenant.getId())
                             .email(request.getWalletAddress().toLowerCase() + "@wallet.local")
                             .username("wallet_" + request.getWalletAddress().substring(2, 10).toLowerCase())
                             .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
@@ -152,12 +160,16 @@ public class AuthService {
             throw new RuntimeException("Invalid token type");
         }
 
-        Long userId = jwtService.getUserIdFromToken(refreshToken);
+        UUID userId = jwtService.getUserIdFromToken(refreshToken);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!user.isEnabled()) {
             throw new RuntimeException("Account is disabled");
+        }
+        if (user.getRefreshTokenHash() == null || user.getRefreshTokenExpiresAt() == null ||
+                user.getRefreshTokenExpiresAt().isBefore(Instant.now()) || !passwordEncoder.matches(refreshToken, user.getRefreshTokenHash())) {
+            throw new RuntimeException("Refresh token has been rotated or expired");
         }
 
         // Generate new tokens (rotation)
@@ -165,7 +177,7 @@ public class AuthService {
     }
 
     @Transactional
-    public void logout(Long userId) {
+    public void logout(UUID userId) {
         log.info("Logging out user: {}", userId);
         User user = userRepository.findById(userId).orElse(null);
         if (user != null) {
@@ -177,7 +189,7 @@ public class AuthService {
 
     public Optional<User> getCurrentUser(String token) {
         try {
-            Long userId = jwtService.getUserIdFromToken(token);
+            UUID userId = jwtService.getUserIdFromToken(token);
             return userRepository.findById(userId);
         } catch (Exception e) {
             return Optional.empty();
@@ -185,8 +197,8 @@ public class AuthService {
     }
 
     private AuthResponse generateAuthResponse(User user) {
-        String accessToken = jwtService.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
-        String refreshToken = jwtService.generateRefreshToken(user.getId());
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole());
+        String refreshToken = jwtService.generateRefreshToken(user.getId(), user.getTenantId());
 
         // Store hashed refresh token
         user.setRefreshTokenHash(passwordEncoder.encode(refreshToken));
@@ -195,10 +207,12 @@ public class AuthService {
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtService.getAccessTokenExpirationSeconds())
                 .user(AuthResponse.UserDto.builder()
                         .id(user.getId())
+                        .tenantId(user.getTenantId())
                         .email(user.getEmail())
                         .username(user.getUsername())
                         .displayName(user.getDisplayName())

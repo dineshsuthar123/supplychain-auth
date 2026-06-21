@@ -161,3 +161,71 @@ python -m locust -f locustfile_godmode.py --headless -u 200 -r 100 -t 30s
 *"We shot for the moon and landed among the stars."*
 
 **Achievement Unlocked: Near-Tier-4 on a Laptop 🏆**
+
+---
+
+# Real-World Benchmark — Full Stack (March 2026)
+
+## What ChatGPT Exposed (Correctly)
+
+The GODMODE benchmarks above were called out as misleading:
+- Hardcoded `verified = true` for all serials
+- H2 in-memory database (not PostgreSQL)
+- Kafka disabled
+- Pre-computed byte[] responses (no real JSON)
+
+**They were right.** So we built the real thing.
+
+## Real-World Architecture
+
+```
+Request
+  │
+  ▼
+Redis L1 cache (0.5–2ms) ──HIT──► return immediately
+  │ MISS
+  ▼
+PostgreSQL (5–15ms) ──FOUND──► populate Redis ──► return
+  │ NOT FOUND
+  ▼
+return false (never default to true)
+  │
+  ▼ (async, fire-and-forget)
+Kafka audit event → product.verifications topic
+```
+
+Stack: Spring Boot 3.2 + HikariCP + Lettuce Redis + Spring Kafka  
+Infrastructure: PostgreSQL 15 (Docker), Redis 7 (Docker), Kafka 7.4 (Confluent, Docker)
+
+## Benchmark Results (50 users, 60s, 0% failures)
+
+| Endpoint | Requests | RPS | p50 | p95 | p99 | Failures |
+|----------|----------|-----|-----|-----|-----|----------|
+| `/realworld/verify/[hot]` (Redis hit) | 8,188 | **153** | 5ms | 14ms | 28ms | **0%** |
+| `/realworld/verify/[cold]` (DB fallback) | 1,775 | **33** | 5ms | 20ms | 48ms | **0%** |
+| `/realworld/verify/[miss]` (not found) | 1,141 | **21** | 7ms | 21ms | 49ms | **0%** |
+| `/products [register]` (write + cache) | 613 | **11** | 15ms | 48ms | 140ms | **0%** |
+| **Aggregated** | **12,892** | **242** | **5ms** | **18ms** | **38ms** | **0%** |
+
+## Godmode vs Real-World Comparison (same 50 users, 60s)
+
+| Stack | Endpoint Type | RPS | p50 | p99 | Legitimate? |
+|-------|--------------|-----|-----|-----|-------------|
+| GODMODE (H2, hardcoded) | verify | 1,705 | 7ms | — | ❌ Fake |
+| **Real-World** (Redis→PG→Kafka) | hot verify | **153** | **5ms** | **28ms** | ✅ Real |
+
+**Godmode is 11x higher throughput** because it does nothing real — no DB, no cache network, no Kafka.  
+**Real-world achieves 5ms median** with a genuine Redis→PostgreSQL→Kafka pipeline.
+
+## What Was Fixed
+
+1. **HikariCP dead connections** — Added `connection-test-query=SELECT 1`, reduced `minimum-idle=2`, `max-lifetime=300s`, `keepalive-time=30s`
+2. **Kafka listener misconfiguration** — Added `KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092` so the external listener binds to the mapped port (9092→9095)
+3. **Kafka topic auto-create** — Pre-created `product.verifications` topic with 3 partitions
+
+## Honest Performance Claim
+
+> "On a single developer laptop, a genuine Redis→PostgreSQL→Kafka verification pipeline achieves **242 RPS** with **5ms median latency** and **zero failures** under 50 concurrent users."
+
+This is verifiable, reproducible, and honest.
+

@@ -4,6 +4,7 @@ import com.supplychain.productservice.dto.ProductRegistrationRequest;
 import com.supplychain.productservice.dto.ProductResponse;
 import com.supplychain.productservice.entity.Product;
 import com.supplychain.productservice.repository.ProductRepository;
+import com.supplychain.productservice.realworld.RealWorldCacheService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -19,6 +20,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final Web3j web3j;
     private final Credentials credentials;
+    private final RealWorldCacheService cacheService;
     
     // Pre-allocated hex chars for fast token generation
     private static final char[] HEX = "0123456789abcdef".toCharArray();
@@ -26,10 +28,12 @@ public class ProductService {
     @Autowired
     public ProductService(ProductRepository productRepository,
                           @Autowired(required = false) Web3j web3j,
-                          @Autowired(required = false) Credentials credentials) {
+                          @Autowired(required = false) Credentials credentials,
+                          @Autowired(required = false) RealWorldCacheService cacheService) {
         this.productRepository = productRepository;
         this.web3j = web3j;
         this.credentials = credentials;
+        this.cacheService = cacheService;
     }
 
     @Transactional
@@ -51,6 +55,11 @@ public class ProductService {
                 .build();
 
         product = productRepository.save(product);
+
+        // Eagerly populate Redis cache so the FIRST verification of this serial is a cache hit
+        if (cacheService != null) {
+            cacheService.onProductRegistered(product.getSerialNumber());
+        }
 
         // Direct field mapping - no reflection
         return buildResponse(product);

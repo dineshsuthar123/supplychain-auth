@@ -1,28 +1,60 @@
+/**
+ * SupplyPrint – Deploy ProductRegistrar to Polygon Mumbai (or Amoy)
+ *
+ * Usage:
+ *   npx hardhat run scripts/deploy.js --network mumbai
+ *
+ * Pre-requisites:
+ *   1. Set BLOCKCHAIN_PRIVATE_KEY in .env (wallet funded with test MATIC)
+ *      Faucet: https://faucet.polygon.technology/
+ *   2. Set BLOCKCHAIN_RPC_URL (or use the default maticvigil URL)
+ *
+ * After deployment, update .env:
+ *   BLOCKCHAIN_CONTRACT_ADDRESS=<address printed below>
+ */
 const path = require("path");
+const fs   = require("fs");
 const { config: loadEnv } = require("dotenv");
 const { ethers } = require("hardhat");
 
 loadEnv({ path: path.resolve(__dirname, "..", "..", ".env") });
 
 async function main() {
-  const nftAddress = process.env.NFT_CONTRACT_ADDRESS || ethers.ZeroAddress;
-  const zkVerifierAddress = process.env.ZK_VERIFIER_ADDRESS || ethers.ZeroAddress;
+  const [deployer] = await ethers.getSigners();
+  console.log("Deploying with account:", deployer.address);
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("Account balance:", ethers.formatEther(balance), "MATIC");
 
-  if (!process.env.ETHEREUM_RPC_URL) {
-    console.warn("[deploy] ETHEREUM_RPC_URL is not set. Using Hardhat default provider if running against localhost.");
-  }
-
-  if (!process.env.PRIVATE_KEY) {
-    console.warn("[deploy] PRIVATE_KEY is not set. Transactions that require signing will fail on public networks.");
-  }
-
-  const ProductVerifier = await ethers.getContractFactory("ProductVerifier");
-  const contract = await ProductVerifier.deploy(nftAddress, zkVerifierAddress);
+  const ProductRegistrar = await ethers.getContractFactory("ProductRegistrar");
+  console.log("Deploying ProductRegistrar…");
+  const contract = await ProductRegistrar.deploy();
   await contract.waitForDeployment();
 
-  console.log("ProductVerifier deployed at:", await contract.getAddress());
-  console.log("  NFT contract:", nftAddress);
-  console.log("  ZK verifier:", zkVerifierAddress);
+  const address = await contract.getAddress();
+  const receipt = await contract.deploymentTransaction().wait(1);
+  console.log("─────────────────────────────────────────────────");
+  console.log("✅  ProductRegistrar deployed!");
+  console.log("    Address  :", address);
+  console.log("    Tx hash  :", receipt.hash);
+  console.log("    Block    :", receipt.blockNumber);
+  console.log("    Polygonscan: https://mumbai.polygonscan.com/address/" + address);
+  console.log("─────────────────────────────────────────────────");
+  console.log("Add to .env:");
+  console.log(`  BLOCKCHAIN_CONTRACT_ADDRESS=${address}`);
+
+  // Auto-update .env file if it exists
+  const envPath = path.resolve(__dirname, "..", "..", ".env");
+  if (fs.existsSync(envPath)) {
+    let envContent = fs.readFileSync(envPath, "utf8");
+    const line = `BLOCKCHAIN_CONTRACT_ADDRESS=${address}`;
+    if (envContent.includes("BLOCKCHAIN_CONTRACT_ADDRESS=")) {
+      envContent = envContent.replace(/BLOCKCHAIN_CONTRACT_ADDRESS=.*/g, line);
+    } else {
+      envContent += `\n${line}\n`;
+    }
+    fs.writeFileSync(envPath, envContent);
+    console.log("✅  .env updated automatically");
+  }
 }
 
 main()
@@ -31,3 +63,4 @@ main()
     console.error(error);
     process.exit(1);
   });
+

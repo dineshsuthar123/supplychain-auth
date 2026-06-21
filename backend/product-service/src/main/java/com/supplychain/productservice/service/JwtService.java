@@ -31,7 +31,7 @@ public class JwtService {
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
     }
 
-    public String generateAccessToken(Long userId, String email, String role) {
+    public String generateAccessToken(UUID userId, UUID tenantId, String email, String role) {
         Instant now = Instant.now();
         Instant expiry = now.plusMillis(accessTokenExpirationMs);
 
@@ -40,6 +40,7 @@ public class JwtService {
                 .subject(userId.toString())
                 .claim("email", email)
                 .claim("role", role)
+                .claim("tenant_id", tenantId.toString())
                 .claim("type", "access")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
@@ -47,7 +48,7 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateRefreshToken(Long userId) {
+    public String generateRefreshToken(UUID userId, UUID tenantId) {
         Instant now = Instant.now();
         Instant expiry = now.plusMillis(refreshTokenExpirationMs);
 
@@ -55,6 +56,7 @@ public class JwtService {
                 .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .claim("type", "refresh")
+                .claim("tenant_id", tenantId.toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(secretKey)
@@ -86,9 +88,9 @@ public class JwtService {
         }
     }
 
-    public Long getUserIdFromToken(String token) {
+    public UUID getUserIdFromToken(String token) {
         Claims claims = parseToken(token);
-        return Long.parseLong(claims.getSubject());
+        return UUID.fromString(claims.getSubject());
     }
 
     public String getEmailFromToken(String token) {
@@ -104,6 +106,9 @@ public class JwtService {
     public String getTokenType(String token) {
         Claims claims = parseToken(token);
         return claims.get("type", String.class);
+    }
+    public UUID getTenantIdFromToken(String token) {
+        return UUID.fromString(parseToken(token).get("tenant_id", String.class));
     }
 
     public long getAccessTokenExpirationSeconds() {
