@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/auth")
@@ -25,6 +27,8 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtService jwtService;
+    @Value("${supplyprint.cookies.secure:true}")
+    private boolean secureCookie;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
@@ -46,7 +50,7 @@ public class AuthController {
             AuthResponse authResponse = authService.login(request);
             
             // Set refresh token in HttpOnly cookie
-            addRefreshTokenCookie(response, authResponse.getAccessToken());
+            addRefreshTokenCookie(response, authResponse.getRefreshToken());
             
             return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
@@ -72,7 +76,7 @@ public class AuthController {
         log.info("SIWE login request for wallet: {}", request.getWalletAddress());
         try {
             AuthResponse authResponse = authService.loginWithWallet(request);
-            addRefreshTokenCookie(response, authResponse.getAccessToken());
+            addRefreshTokenCookie(response, authResponse.getRefreshToken());
             return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
             log.error("SIWE login failed: {}", e.getMessage());
@@ -92,7 +96,7 @@ public class AuthController {
             }
             
             AuthResponse authResponse = authService.refreshToken(refreshToken);
-            addRefreshTokenCookie(response, authResponse.getAccessToken());
+            addRefreshTokenCookie(response, authResponse.getRefreshToken());
             return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
             log.error("Token refresh failed: {}", e.getMessage());
@@ -108,7 +112,7 @@ public class AuthController {
         try {
             String token = extractBearerToken(request);
             if (token != null) {
-                Long userId = jwtService.getUserIdFromToken(token);
+                UUID userId = jwtService.getUserIdFromToken(token);
                 authService.logout(userId);
             }
             clearRefreshTokenCookie(response);
@@ -137,6 +141,7 @@ public class AuthController {
             User user = userOpt.get();
             return ResponseEntity.ok(AuthResponse.UserDto.builder()
                     .id(user.getId())
+                    .tenantId(user.getTenantId())
                     .email(user.getEmail())
                     .username(user.getUsername())
                     .displayName(user.getDisplayName())
@@ -159,7 +164,7 @@ public class AuthController {
     private void addRefreshTokenCookie(HttpServletResponse response, String token) {
         Cookie cookie = new Cookie("refresh", token);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(secureCookie);
         cookie.setPath("/");
         cookie.setMaxAge(14 * 24 * 60 * 60); // 14 days
         cookie.setAttribute("SameSite", "Lax");
@@ -169,7 +174,7 @@ public class AuthController {
     private void clearRefreshTokenCookie(HttpServletResponse response) {
         Cookie cookie = new Cookie("refresh", "");
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(secureCookie);
         cookie.setPath("/");
         cookie.setMaxAge(0);
         response.addCookie(cookie);

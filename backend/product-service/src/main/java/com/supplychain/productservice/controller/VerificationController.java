@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * Optimized for 12k+ req/min with <400ms latency.
  */
 @RestController
-@RequestMapping("/api/verify")
+@RequestMapping("/api/v1/verify")
 @RequiredArgsConstructor
 public class VerificationController {
     

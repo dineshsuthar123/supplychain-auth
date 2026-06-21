@@ -6,14 +6,17 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'spring-boot-services'
+  - job_name: 'supplyprint-product-service'
     metrics_path: /actuator/prometheus
     scrape_interval: 10s
     static_configs:
       - targets:
           - 'product-service:8080'
-          - 'verification-service:8080'
-          - 'event-service:8080'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: supplyprint-product-service
 
 rule_files:
   - /etc/prometheus/rules/alerting-rules.yaml
+
