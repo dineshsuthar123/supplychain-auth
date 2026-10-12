@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
+const apiTarget = process.env.LOTLINE_API_TARGET ?? 'http://localhost:8080';
 export default defineConfig({
   plugins: [
     react(),
@@ -37,7 +38,7 @@ export default defineConfig({
       },
     },
   ],
-  server: { proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: false } } },
-  preview: { proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: false } } },
+  server: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
+  preview: { proxy: { '/api': { target: apiTarget, changeOrigin: false } } },
   build: { chunkSizeWarningLimit: 600 },
 });

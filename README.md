@@ -20,6 +20,16 @@ The connected coffee case starts with 1,200 units. Its descendant holdings total
 
 ## Start from a fresh clone
 
+Public demo: **https://supplyledger.vercel.app/**. [Short usage guide and practical examples](docs/using-lotline.md).
+
+On Windows with Docker Desktop running and Node 22 installed, start everything with:
+
+```powershell
+.\scripts\start-local.ps1
+```
+
+This generates private local credentials if needed and serves the app at **http://127.0.0.1:4173**. Create your own workspace account. Stop it with `.\scripts\stop-local.ps1`; database records are retained. Stop any earlier frontend for this checkout before launching.
+
 Requirements: Docker with Linux containers; Node 22 (local / CI pin **22.17.0**, npm **10.9.2**); Java **21.0.9** for native backend development; Python **3.14.6** for verification utilities. Docker includes the Java runtime and pinned Maven **3.9.16** wrapper.
 
 1. Copy `.env.example` to `.env`. Replace `DB_PASSWORD`, `JWT_SECRET` (random 32+ characters), and `DEMO_PASSWORD` (12+ characters). These are local choices, never built-in owner credentials.
@@ -82,14 +92,14 @@ One Java 21 Spring Boot application, JDBC domain services, plain PostgreSQL, an 
 | [Deployment](docs/deployment.md) | Render first, concrete Vercel rewrite, secrets, backups, cutover |
 | [Implementation notes](docs/implementation-notes.md) | Starting commit, preserved local work, keep/delete decisions |
 
-`render.yaml` defaults to a **temporary synthetic demo**. Durable always-on service / database selections require the owner’s billing decision. The authoritative `frontend/vercel.json` contains an intentionally invalid upstream until a real Render API exists:
+`render.yaml` defaults to a **temporary synthetic demo**. Durable always-on service / database selections require the owner’s billing decision. The authoritative `frontend/vercel.json` targets the existing Render API:
 
 ```sh
 node scripts/configure-vercel.mjs https://YOUR-ACTUAL-API.onrender.com
 python scripts/check-deployment.py
 ```
 
-Live Vercel / Render deployment and HTTPS proxy cookies are **unverified** without hosting account access. Exact remaining steps and the deployed cookie smoke test are in [deployment.md](docs/deployment.md).
+The existing provider projects are being cut over to this implementation. Executed public deployment checks and temporary hosting limits are recorded in [deployment.md](docs/deployment.md).
 
 ## Product limits
 

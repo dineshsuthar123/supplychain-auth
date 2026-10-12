@@ -348,9 +348,10 @@ test('owner onboarding with keyboard, empty state and cookie refresh', async ({ 
   await expect(page.getByText('Your first lot starts the thread.')).toBeVisible();
   await page.reload();
   await expect(page.getByText('Your first lot starts the thread.')).toBeVisible();
-  expect(
-    (await page.context().cookies()).some(
-      (c) => c.name === 'lotline-refresh' && c.httpOnly && c.path === '/',
-    ),
-  ).toBeTruthy();
+  const https = (process.env.APP_URL ?? 'http://localhost:4173').startsWith('https://');
+  const cookieName = https ? '__Host-lotline-refresh' : 'lotline-refresh';
+  const cookie = (await page.context().cookies()).find((c) => c.name === cookieName);
+  expect(cookie?.httpOnly).toBeTruthy();
+  expect(cookie?.path).toBe('/');
+  expect(cookie?.secure).toBe(https);
 });
