@@ -7,6 +7,7 @@ import App from './app/App';
 import '@fontsource-variable/dm-sans';
 import '@fontsource-variable/fraunces';
 import './styles/main.css';
+import './styles/cinema.css';
 const query = new QueryClient({
   defaultOptions: {
     queries: {

@@ -11,8 +11,8 @@
     "samples": 1
   },
   "metrics": {
-    "LCP_ms": 2108,
-    "INP_ms": 128,
+    "LCP_ms": 2448,
+    "INP_ms": 80,
     "CLS": 0
   },
   "limits": "One lab sample with two real synthetic-walkthrough interactions. Not a field percentile or a deployed Vercel/Render measurement."

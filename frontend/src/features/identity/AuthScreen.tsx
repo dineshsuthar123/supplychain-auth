@@ -2,12 +2,14 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../app/Auth';
 import { Brand, Field, ErrorNotice } from '../../components/UI';
+import LotCharacter from '../../components/LotCharacter';
 export default function AuthScreen({ mode }: { mode: 'login' | 'create' | 'invite' }) {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [secret, setSecret] = useState(false);
   const key = useRef(crypto.randomUUID());
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -40,6 +42,10 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'create' | 'invit
       </Link>
       <div className="auth-composition">
         <section className="auth-copy">
+          <div className="auth-character">
+            <LotCharacter expression={secret ? 'secret' : 'awake'} />
+            <span>LO / YOUR LOT HAS A STORY</span>
+          </div>
           <p className="eyebrow">A shared chain of custody</p>
           <h1>
             {mode === 'login' ? (
@@ -89,7 +95,16 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'create' | 'invit
                 ? 'Begin with your organization.'
                 : 'Join a cooperating network.'}
           </h2>
-          <form onSubmit={submit} className="command-form">
+          <form
+            onSubmit={submit}
+            className="command-form"
+            onFocusCapture={(event) =>
+              setSecret(
+                event.target instanceof HTMLInputElement && event.target.type === 'password',
+              )
+            }
+            onBlurCapture={() => setSecret(false)}
+          >
             {mode !== 'login' && (
               <Field label="Your name">
                 <input name="name" autoComplete="name" required maxLength={120} />

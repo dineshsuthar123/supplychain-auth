@@ -6,6 +6,8 @@ Lotline is an operational traceability and recall workbench for a small manufact
 
 ![Lotline trace workbench](docs/screenshots/trace-1440.png)
 
+The public entry now has an original paper-character cast, a skippable cinematic opening, a spatial coffee scene and continuous-thread page transitions. [Design references and interactions](docs/frontend-direction.md), [desktop story](docs/screenshots/story-1440.png), [opening frame](docs/screenshots/opening-1440.png), [phone story](docs/screenshots/story-360.png). Reduced motion retains every workflow.
+
 ## What works
 
 - Owner-created workspace, cooperating organizations, sites, bounded operator / partner / auditor grants, and expiring invitations.
@@ -70,7 +72,7 @@ PostgreSQL Testcontainers requires Docker. E2E requires a real API/database at `
 
 ## Architecture and deployment
 
-One Java 21 Spring Boot application, JDBC domain services, plain PostgreSQL, an append-only accepted journal, derived balances, and a bounded internal outbox. Vite / TypeScript / React Router / TanStack Query provide the daily workbench. The public SVG ribbon renders immediately and loads GSAP separately for its optional animation, with a complete reduced-motion state. Fonts are self-hosted, with OFL licenses in `frontend/public`.
+One Java 21 Spring Boot application, JDBC domain services, plain PostgreSQL, an append-only accepted journal, derived balances, and a bounded internal outbox. Vite / TypeScript / React Router / TanStack Query provide the daily workbench. The original public SVG scenes render immediately and load GSAP / ScrollTrigger separately for optional animation. Page transitions use the native Web Animations API. Device and manual reduced-motion preferences retain the complete static presentation. Fonts are self-hosted, with OFL licenses in `frontend/public`.
 
 | Read | Purpose |
 |---|---|

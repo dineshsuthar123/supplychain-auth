@@ -15,6 +15,8 @@ import { api, download } from '../lib/api';
 import type { Notification } from '../lib/types';
 import { Brand, ErrorNotice, Loading, date } from '../components/UI';
 import Story from '../features/story/Story';
+import MotionFrame from '../components/MotionFrame';
+import { useMotionMode, toggleMotion } from '../lib/motion';
 const AuthScreen = lazy(() => import('../features/identity/AuthScreen'));
 const Handoffs = lazy(() => import('../features/custody/Handoffs'));
 const Incidents = lazy(() => import('../features/recall/Incidents'));
@@ -23,6 +25,7 @@ const Evidence = lazy(() => import('../features/audit/Evidence'));
 const CommandPalette = lazy(() => import('../components/CommandPalette'));
 const Trace = lazy(() => import('../features/trace/Trace'));
 function Shell() {
+  const motionMode = useMotionMode();
   const { session, member, status, error, retry, logout, switchWorkspace } = useAuth();
   const query = useQueryClient();
   const navigate = useNavigate();
@@ -122,6 +125,11 @@ function Shell() {
               <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
                 {theme === 'light' ? 'Switch to dusk appearance' : 'Switch to paper appearance'}
               </button>
+              <button onClick={toggleMotion}>
+                {motionMode === 'reduced'
+                  ? 'Motion settings · use device preference'
+                  : 'Motion settings · reduce animation'}
+              </button>
               <button
                 onClick={async () => {
                   try {
@@ -159,9 +167,15 @@ function Shell() {
           >
             ↧{notifications.data?.some((n) => !n.read_at) && <span className="unread-dot" />}
           </button>
-          <span className="avatar" title={`${session.user.name} · ${member.role.toLowerCase()}`}>
+          <button
+            className="avatar"
+            title={`${session.user.name} · ${member.role.toLowerCase()}`}
+            aria-label="Operator profile and workspace settings"
+            aria-expanded={menu}
+            onClick={() => setMenu(!menu)}
+          >
             {session.user.name.slice(0, 1)}
-          </span>
+          </button>
         </div>
       </header>
       {palette && (
@@ -231,38 +245,40 @@ function Shell() {
 }
 export default function App() {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <Suspense fallback={<Loading />}>
-            <Story />
-          </Suspense>
-        }
-      />
-      <Route path="/login" element={<AuthScreen mode="login" />} />
-      <Route path="/create" element={<AuthScreen mode="create" />} />
-      <Route path="/invite" element={<AuthScreen mode="invite" />} />
-      <Route path="/app" element={<Shell />}>
-        <Route index element={<Navigate to="trace" replace />} />
-        <Route path="trace" element={<Trace />} />
-        <Route path="handoffs" element={<Handoffs />} />
-        <Route path="handoffs/:id" element={<Handoffs />} />
-        <Route path="incidents" element={<Incidents />} />
-        <Route path="incidents/:id" element={<Incidents />} />
-        <Route path="workspace" element={<Administration />} />
-        <Route path="evidence" element={<Evidence />} />
-      </Route>
-      <Route
-        path="*"
-        element={
-          <div className="auth-loading">
-            <Brand />
-            <h1>This path is outside the network.</h1>
-            <Link to="/app/trace">Open your trace workbench</Link>
-          </div>
-        }
-      />
-    </Routes>
+    <MotionFrame>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<Loading />}>
+              <Story />
+            </Suspense>
+          }
+        />
+        <Route path="/login" element={<AuthScreen mode="login" />} />
+        <Route path="/create" element={<AuthScreen mode="create" />} />
+        <Route path="/invite" element={<AuthScreen mode="invite" />} />
+        <Route path="/app" element={<Shell />}>
+          <Route index element={<Navigate to="trace" replace />} />
+          <Route path="trace" element={<Trace />} />
+          <Route path="handoffs" element={<Handoffs />} />
+          <Route path="handoffs/:id" element={<Handoffs />} />
+          <Route path="incidents" element={<Incidents />} />
+          <Route path="incidents/:id" element={<Incidents />} />
+          <Route path="workspace" element={<Administration />} />
+          <Route path="evidence" element={<Evidence />} />
+        </Route>
+        <Route
+          path="*"
+          element={
+            <div className="auth-loading">
+              <Brand />
+              <h1>This path is outside the network.</h1>
+              <Link to="/app/trace">Open your trace workbench</Link>
+            </div>
+          }
+        />
+      </Routes>
+    </MotionFrame>
   );
 }

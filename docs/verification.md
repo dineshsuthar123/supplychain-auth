@@ -2,6 +2,8 @@
 
 This report covers local execution against real PostgreSQL and real application APIs. Live Vercel/Render URLs, provider TLS/cookie forwarding, hosted CI and paid backup restoration remain unverified. No hosting credentials or billing commitments were used.
 
+The cinematic frontend follow-up re-ran typecheck, lint, formatting, the decimal unit test, the production build and the complete real-API browser suite. Its original cast, intro, motion controls and design references are documented in [frontend-direction.md](frontend-direction.md). Backend and container results below are from the preceding pivot validation; backend code was unchanged in this frontend follow-up.
+
 ## Commands and results
 
 | Check | Executed command / result |
@@ -9,7 +11,7 @@ This report covers local execution against real PostgreSQL and real application 
 | Backend | `backend/mvnw.cmd -B -ntp -f backend/pom.xml verify` — **24 tests passed**, zero failures/errors/skips; executable jar built. |
 | Fresh / legacy database | PostgreSQL 17.9 Testcontainers applied all three migrations to an empty database, and separately preserved legacy `public` account/history sentinel rows. No H2 replacement. |
 | Frontend | `npm ci`, `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build` — passed. One unit test exercises decimal arithmetic beyond JavaScript safe-integer precision. |
-| Browser | `npx playwright test` — **9 passed, 1 skipped** in 2.2 minutes. Real production-preview/API suite includes expanded receipt/incident checks. Hosted HTTPS proxy test explicitly requires deployment and is skipped locally. |
+| Browser | `npx playwright test` — **14 passed, 1 skipped** in 2.3 minutes. Real production-preview/API suite includes cinematic interactions, receipt/incident checks, and the complete coffee case. Hosted HTTPS proxy test explicitly requires deployment and is skipped locally. |
 | Container | `docker build -t lotline:local backend` — passed. Java 21 non-root user `lotline`, `PORT=10000`, database supplied as PostgreSQL URI, memory limit 512 MiB, readiness UP. Observed warm usage 251.5 MiB; this is one local observation, not a capacity guarantee. |
 | Smoke | `python scripts/smoke.py --base http://localhost:8081 --output artifacts/docker-smoke-final` — completed separate synthetic coffee workspace through close/export/projection comparison. |
 | Packet | `python scripts/verify-evidence.py artifacts/docker-smoke-final/lotline-evidence.zip` — verified all **7 payload files**, sequence 46. Integration tests reject changed bytes and validate snapshot scope. |
@@ -32,6 +34,8 @@ The public story, login, trace, handoff list, workspace and evidence screens are
 
 Checks include no document-level horizontal overflow, long lot/organization labels, serious/critical axe violations, reduced motion, keyboard edge selection/deep-link reload, dialog focus/Escape, owner onboarding, session reload, stale recall confirmation and explicit offline/backend-unavailable recovery. Horizontally scrollable tables preserve complete values and are keyboard focusable. No claim of formal accessibility certification is made.
 
+The cinematic suite also verifies automatic intro completion, first-visit versus returning-visit behavior, Skip/Escape/replay, three camera chapters, orbit, offscreen pause, synthetic case reset, persisted manual motion preference, password-field character focus, real route transitions, stable query-only graph selection and command palette access. Four additional screenshots show the opening and scene at 360 / 1440 px; the opening screenshot samples the actual composed animation at 1.85 seconds. A decorative SVG treatment corrected the first mobile contrast finding.
+
 ## Newly measured performance
 
 [Raw benchmark](benchmark.json) / [query plans](query-plans.txt) / [reproduction queries](../scripts/explain-queries.sql).
@@ -46,7 +50,7 @@ Hardware: Windows 11, Ryzen 7 8845HS (8 cores/16 threads), 15.31 GiB system RAM,
 
 The planner chose sequential scans for tiny journal/event tables and indexed lookups for the coffee fixture's two descendant edges and due outbox predicate. It was not forced to use indexes. The outbox was drained, so its measured selection returned zero rows; lease/concurrency behavior is covered separately by integration tests. These plans and loopback figures do not predict cloud latency or larger tenant performance. Run `scripts/load-test.py` only against an isolated synthetic environment.
 
-[Public-entry web-vitals sample](web-vitals.json): **LCP 2,108 ms, INP 128 ms, CLS 0**. Fresh Chromium context at 1440×1000, CPU slowed 4×, network latency 150 ms, 1.6 Mbps download / 0.75 Mbps upload, gzip-compressed production preview. The first lazy-story sample missed LCP at 3.32 s; rendering the complete SVG immediately and loading only GSAP separately removed the additional route waterfall. Daily app feature routes and graph remain separate chunks. This is a lab sample with two interactions, not a field percentile or deployed-provider measurement.
+[Public-entry web-vitals sample](web-vitals.json): **LCP 2,448 ms, INP 80 ms, CLS 0** for the cinematic frontend. Fresh Chromium context at 1440×1000, CPU slowed 4×, network latency 150 ms, 1.6 Mbps download / 0.75 Mbps upload, gzip-compressed production preview. The preceding pivot's final sample was 2,108 / 128 / 0; the cinematic follow-up adds original SVG artwork, the opening, and lazily loaded GSAP / ScrollTrigger. Daily app feature routes and graph remain separate chunks. This is a lab sample with two interactions, not a field percentile or deployed-provider measurement.
 
 ## Remaining deployment and product limits
 

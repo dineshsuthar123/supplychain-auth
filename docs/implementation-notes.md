@@ -2,6 +2,8 @@
 
 Starting commit: `8b0fb2747e8518d83a6b0812288f2137524134dc`.
 Starting branch: `codex/supplyprint-production-validation`; implementation branch: `feat/lotline-workbench`.
+
+The cinematic frontend follow-up starts from `33ddceaf25b6c665b3e321580b4f255a51d99155` on `feat/lotline-cinematic`. [Research, original character direction and motion behavior](frontend-direction.md) document this follow-up. Backend domain logic and deployment selectors are unchanged by the frontend work.
 No AGENTS.md was found in the repository or its parent directories. The initial tracked changes were generated Java classes/jars and compiler lists. Untracked datasets, reports, local secrets, experiments, and the original working tree were preserved outside the repository at `../lotline-user-backup-20261012`; they are not part of Lotline or a deployment.
 
 ## Audit and consolidation
