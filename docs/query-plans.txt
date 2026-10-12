@@ -1,0 +1,63 @@
+SET
+Journal snapshot aggregation
+                                              QUERY PLAN
+-------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=27.75..30.46 rows=60 width=89) (actual rows=200 loops=1)
+   Group Key: lot_id, site_id, status, transfer_id
+   Filter: (sum(delta) > '0'::numeric)
+   Batches: 1  Memory Usage: 160kB
+   Rows Removed by Filter: 20
+   Buffers: shared hit=15
+   ->  Seq Scan on inventory_journal  (cost=0.00..24.75 rows=240 width=62) (actual rows=240 loops=1)
+         Filter: ((sequence <= 243) AND (workspace_id = '40753afc-8238-470e-a3bf-7f2e54d2ce0d'::uuid))
+         Rows Removed by Filter: 416
+         Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=141
+ Planning Time: 0.642 ms
+ Execution Time: 0.461 ms
+(14 rows)
+
+Descendant lookup
+                                                                   QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using lineage_pkey on lineage  (cost=0.15..8.17 rows=1 width=32) (actual rows=2 loops=1)
+   Index Cond: ((workspace_id = '266a8546-a585-4bce-a638-8c3ec1ad6104'::uuid) AND (input_lot_id = '9d812636-2d8b-4e86-9e95-8438b00dd2c8'::uuid))
+   Buffers: shared hit=2
+ Planning Time: 0.063 ms
+ Execution Time: 0.022 ms
+(5 rows)
+
+Bounded accepted timeline
+                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------
+ Limit  (cost=59.26..59.76 rows=200 width=48) (actual rows=200 loops=1)
+   Buffers: shared hit=39
+   ->  Sort  (cost=59.26..59.87 rows=243 width=48) (actual rows=200 loops=1)
+         Sort Key: sequence DESC
+         Sort Method: quicksort  Memory: 43kB
+         Buffers: shared hit=39
+         ->  Seq Scan on events  (cost=0.00..49.63 rows=243 width=48) (actual rows=243 loops=1)
+               Filter: ((sequence <= 243) AND (workspace_id = '40753afc-8238-470e-a3bf-7f2e54d2ce0d'::uuid))
+               Rows Removed by Filter: 475
+               Buffers: shared hit=39
+ Planning:
+   Buffers: shared hit=70
+ Planning Time: 0.358 ms
+ Execution Time: 0.472 ms
+(14 rows)
+
+Bounded due outbox selection (without claiming)
+                                               QUERY PLAN
+--------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.13..4.53 rows=1 width=40) (actual rows=0 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using outbox_due on outbox  (cost=0.13..4.53 rows=1 width=40) (actual rows=0 loops=1)
+         Index Cond: (next_attempt_at <= now())
+         Filter: ((lease_until IS NULL) OR (lease_until < now()))
+         Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=72
+ Planning Time: 0.163 ms
+ Execution Time: 0.015 ms
+(10 rows)

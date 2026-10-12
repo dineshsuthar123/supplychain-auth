@@ -1,0 +1,56 @@
+server:
+  address: 0.0.0.0
+  port: ${PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+debug: false
+logging:
+  level:
+    root: INFO
+spring:
+  application:
+    name: lotline
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:lotline}
+    username: ${DB_USER:lotline}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 1
+      connection-timeout: 10000
+      schema: lotline
+  flyway:
+    locations: classpath:db/migration
+    schemas: lotline
+    default-schema: lotline
+    table: lotline_schema_history
+    create-schemas: true
+    user: ${MIGRATION_DB_USER:${DB_USER:lotline}}
+    password: ${MIGRATION_DB_PASSWORD:${DB_PASSWORD}}
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  mvc:
+    problemdetails:
+      enabled: false
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-null-for-primitives: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+lotline:
+  jwt-secret: ${JWT_SECRET}
+  trusted-origins: ${TRUSTED_ORIGINS:http://localhost:5173,http://localhost:4173}
+  secure-cookies: ${SECURE_COOKIES:false}
+  outbox-delay-ms: ${OUTBOX_DELAY_MS:2000}

@@ -1,30 +1,38 @@
-# Security model
+# Security and sharing
 
-## Route policy
+The tenant boundary is a cooperating **workspace**. Directory membership intentionally shares organization/site names. It does not share every partner’s stock or internal operational claims.
 
-Public routes are restricted to registration/login/refresh, health, and local API documentation. Every `/api/**` route requires a validated access JWT. Enrollment requires `ROLE_MANUFACTURER` or `ROLE_ADMIN`; image verification requires verifier, manufacturer, or admin; evidence/dashboard reads allow auditor, verifier, manufacturer, or admin.
+| Grant | Scope |
+|---|---|
+| OWNER | Administers its new workspace, network stock and permission grants. Cannot manufacture another organization’s receiver assertion. |
+| OPERATOR | Operates its organization and granted sites; no unrestricted partner holdings. |
+| PARTNER_OPERATOR | Its own authorized holdings / handoffs / incident targets, relevant ancestry, receiving and permitted onward stock commands. |
+| AUDITOR | Read-only operational scope; an explicit `networkRead` grant may broaden reads across the workspace. Personal inbox read state is permitted. |
+| RECALL_MANAGER | Explicit operator permission for full incident scope, activation / closure and accountable loss. Site operations remain within the membership’s operational scope. |
 
-The access token carries the authenticated user ID, role, and tenant ID. `JwtAuthenticationFilter` validates token type and populates the Spring Security authority plus request-scoped `TenantContext`. The context is cleared at request completion.
+An empty site list grants all sites **in the member’s own organization**, not every network site. Read/write/trace/event/export/notification checks apply site restrictions. Composite domain foreign keys include workspace identity. A token carries user/session identity, not an authoritative role. Each request loads the current membership; commands recheck it after acquiring the workspace guard. Forged body fields are rejected; a mismatched workspace header is forbidden. Request context/MDC is cleared in `finally`; workers take explicit workspace IDs.
 
-## Credentials and sessions
+## Authentication
 
-Passwords use BCrypt. Login returns an access token and puts the rotating refresh token in a secure, HTTP-only, SameSite=Lax cookie. Refresh checks the persisted BCrypt refresh-token hash and expiry before issuing a replacement, so a previously rotated token cannot be reused.
+BCrypt cost 12 stores password hashes. A new signup creates its own owner workspace; existing-workspace ownership cannot be supplied by a client. Login has a bounded in-process per-account attempt gate; it is not a distributed perimeter defense.
 
-## Browser and upload controls
+Access JWTs expire after 15 minutes and stay in browser memory. Each device/session has a separate hashed refresh secret in PostgreSQL, 14-day sliding expiry, rotation, revocation and used-token replay detection. A replay revokes that session. Refresh credentials never appear in JSON. The client uses single-flight refresh and browser Web Locks where available to serialize cookie rotation across tabs.
 
-`SUPPLYPRINT_CORS_ALLOWED_ORIGINS` controls allowed origins (default `http://localhost:3000`); wildcard credentials are not enabled. Image uploads are validated by magic bytes and decoder, accept only binary JPEG/PNG, require sane dimensions, and cap payloads at 10 MB. SVG/XML/polyglot inputs fail the binary-signature check.
+Production refresh cookies are `__Host-lotline-refresh; HttpOnly; Secure; Path=/; SameSite=Strict`, without a Domain attribute. Local HTTP uses a separately named non-Secure cookie. Cookie auth POSTs require an exact trusted Origin. Credentialed CORS has no wildcard. Logout revokes the session and deletes the same cookie path/name. Validate these through the actual deployed frontend proxy, not just localhost.
 
-## Rate limiting and limitations
+Invitation links are email/workspace/organization/role-bound, single-use and expire after seven days. High-entropy HMAC-derived token bytes are never stored as a reversible raw token; only their hash is stored. The owner can reconstruct the same invitation response for a persisted command without storing the link secret. Signing-secret rotation invalidates outstanding invitations. Onboarding request digests are keyed, so a database-only digest is not a fast offline password verifier.
 
-`ApiRateLimitFilter` enforces a 120 request/minute per-IP/per-route fixed window by default. It is intentionally an in-process safety valve; production multi-instance deployments must move this counter to Redis, gateway, or a dedicated rate-limit service.
+API responses are private/no-store. Pending command **keys and content hashes**, scoped to user/workspace, can survive a timeout/reload in sessionStorage; access and refresh tokens cannot. Browser data is not authoritative. Deterministic failure responses roll back; uncertain transport failures retain their key for retry.
 
-## Acceptance checks
+## Database privileges and integrity
 
-```powershell
-# Expected: 403
-Invoke-WebRequest http://localhost:10000/api/dashboard
-# Expected: 200
-Invoke-WebRequest http://localhost:10000/actuator/health
-```
+`scripts/harden-runtime.sql` grants a dedicated runtime role SELECT/INSERT and only the necessary projection/domain UPDATE/DELETE. It grants no fact rewriting, TRUNCATE, schema ownership or trigger alteration. Run it as the migration owner with a psql secret variable, then configure:
 
-Do not expose `/actuator/prometheus` publicly in production; it is admin-only in the application policy and should also be restricted at ingress.
+- Runtime credentials in `DATABASE_URL` (or `DB_*`).
+- Migration owner in `MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD`.
+
+The temporary Blueprint initially uses the generated database owner for bootstrap; append-only triggers still reject normal rewrites. For durable use, split privileges before accepting real operational records. Future migrations must extend runtime grants deliberately. Do not alter legacy `public` privileges or data as part of this cutover.
+
+Never commit `.env`, dump credentials, enable request-body / JDBC parameter logging around auth, or put private secrets in `VITE_*`. No binary uploads or local-disk evidence are used. Store backups/export packets privately: they contain network assertions and actor information.
+
+This product does not establish legal compliance, certify product authenticity, or verify that a partner’s physical assertion is true.

@@ -1,0 +1,3798 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lotline API",
+    "version": "1.0.0",
+    "description": "Server-resolved session membership. No body/header tenant override. Quantity JSON fields are decimal strings. Accepted commands are idempotent; failed commands roll back and may be retried. Cookie auth endpoints require an exact trusted Origin."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register owner of a new workspace",
+        "operationId": "post__auth_register",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate a separate device/session",
+        "operationId": "post__auth_login",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/accept-invitation": {
+      "post": {
+        "summary": "Accept a single-use email-bound invitation",
+        "operationId": "post__auth_accept_invitation",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationAcceptanceRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Rotate or revoke HttpOnly session cookie",
+        "operationId": "post__auth_refresh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Rotate or revoke HttpOnly session cookie",
+        "operationId": "post__auth_logout",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Load current authenticated membership",
+        "operationId": "get__auth_me",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/auth/workspace": {
+      "post": {
+        "summary": "Select an existing granted workspace",
+        "operationId": "post__auth_workspace",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSelectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace": {
+      "get": {
+        "summary": "Read permitted workspace directory",
+        "operationId": "get__workspace",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/workspace/organizations": {
+      "post": {
+        "summary": "Owner workspace administration",
+        "operationId": "post__workspace_organizations",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/sites": {
+      "post": {
+        "summary": "Owner workspace administration",
+        "operationId": "post__workspace_sites",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/invitations": {
+      "post": {
+        "summary": "Owner workspace administration",
+        "operationId": "post__workspace_invitations",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/permissions": {
+      "post": {
+        "summary": "Owner workspace administration",
+        "operationId": "post__workspace_permissions",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "Read the workspace product catalog",
+        "operationId": "get__products",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create product with an explicit base unit",
+        "operationId": "post__products",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/commission": {
+      "post": {
+        "summary": "Record guarded exact-quantity inventory command",
+        "operationId": "post__inventory_commission",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/operations": {
+      "post": {
+        "summary": "Record guarded exact-quantity inventory command",
+        "operationId": "post__inventory_operations",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/dispositions": {
+      "post": {
+        "summary": "Record guarded exact-quantity inventory command",
+        "operationId": "post__inventory_dispositions",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispositionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/corrections": {
+      "post": {
+        "summary": "Record guarded exact-quantity inventory command",
+        "operationId": "post__inventory_corrections",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/holdings": {
+      "get": {
+        "summary": "Scoped journal-derived holdings",
+        "operationId": "get__inventory_holdings",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sequence",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/trace": {
+      "get": {
+        "summary": "Bounded genealogy, custody and event snapshot",
+        "operationId": "get__trace",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sequence",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/transfers": {
+      "get": {
+        "summary": "Incoming/outgoing transfers within granted site scope",
+        "operationId": "get__transfers",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      },
+      "post": {
+        "summary": "Prepare / reserve an authorized handoff",
+        "operationId": "post__transfers",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferDraftRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}": {
+      "get": {
+        "summary": "Sender and receiver claims, discrepancies and resolutions",
+        "operationId": "get__transfers_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/transfers/{id}/dispatch": {
+      "post": {
+        "summary": "Guarded two-party custody transition",
+        "operationId": "post__transfers_id_dispatch",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}/receive": {
+      "post": {
+        "summary": "Guarded two-party custody transition",
+        "operationId": "post__transfers_id_receive",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}/resolve": {
+      "post": {
+        "summary": "Guarded two-party custody transition",
+        "operationId": "post__transfers_id_resolve",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscrepancyResolutionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}/cancel": {
+      "post": {
+        "summary": "Guarded two-party custody transition",
+        "operationId": "post__transfers_id_cancel",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recalls": {
+      "get": {
+        "summary": "List authorized incidents",
+        "operationId": "get__recalls",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      },
+      "post": {
+        "summary": "Confirm current preview and synchronously hold stock",
+        "operationId": "post__recalls",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallActivationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recalls/{id}": {
+      "get": {
+        "summary": "Incident, preserved revisions, filtered targets and closure policy",
+        "operationId": "get__recalls_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/recalls/preview": {
+      "post": {
+        "summary": "Calculate complete known affected descendants",
+        "operationId": "post__recalls_preview",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallPreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recalls/{id}/acknowledge": {
+      "post": {
+        "summary": "Record independent response or authorized incident decision",
+        "operationId": "post__recalls_id_acknowledge",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgmentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recalls/{id}/close": {
+      "post": {
+        "summary": "Record independent response or authorized incident decision",
+        "operationId": "post__recalls_id_close",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recalls/{id}/reopen": {
+      "post": {
+        "summary": "Record independent response or authorized incident decision",
+        "operationId": "post__recalls_id_reopen",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "Cursor-paginated accepted sequence",
+        "operationId": "get__events",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "sequence",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/evidence/export": {
+      "get": {
+        "summary": "Bounded ZIP snapshot with verifiable manifest",
+        "operationId": "get__evidence_export",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ZIP of scoped snapshot evidence",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sequence",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/evidence/projection-check": {
+      "get": {
+        "summary": "Compare journal-derived balances with current projection",
+        "operationId": "get__evidence_projection_check",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/evidence/rebuild": {
+      "post": {
+        "summary": "Rebuild derived workspace balances from journal",
+        "operationId": "post__evidence_rebuild",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/observations": {
+      "get": {
+        "summary": "Manager evidence gaps, separate from inventory",
+        "operationId": "get__observations",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      },
+      "post": {
+        "summary": "Report unknown custody without commissioning stock",
+        "operationId": "post__observations",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/observations/{id}/resolve": {
+      "post": {
+        "summary": "Append accountable resolution of an evidence observation",
+        "operationId": "post__observations_id_resolve",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationResolutionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inbox": {
+      "get": {
+        "summary": "Current user inbox, bounded to 100 messages",
+        "operationId": "get__inbox",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    },
+    "/inbox/{id}/read": {
+      "post": {
+        "summary": "Record personal inbox read",
+        "operationId": "post__inbox_id_read",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Minimal application liveness",
+        "operationId": "get__health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Accepted command or scoped read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Membership or origin denied"
+          },
+          "409": {
+            "description": "Stale scope/entity or conflicting idempotency key"
+          },
+          "422": {
+            "description": "Deterministic domain rule blocks this command"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "name",
+          "workspaceName",
+          "organizationName"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "InvitationAcceptanceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 72
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "email",
+          "password",
+          "name"
+        ]
+      },
+      "WorkspaceSelectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "NameRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "SiteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "name"
+        ]
+      },
+      "InvitationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OPERATOR",
+              "PARTNER_OPERATOR",
+              "AUDITOR"
+            ]
+          },
+          "recallManager": {
+            "type": "boolean"
+          },
+          "networkRead": {
+            "type": "boolean"
+          },
+          "siteIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30
+          }
+        },
+        "required": [
+          "organizationId",
+          "email",
+          "role"
+        ]
+      },
+      "PermissionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OPERATOR",
+              "PARTNER_OPERATOR",
+              "AUDITOR"
+            ]
+          },
+          "recallManager": {
+            "type": "boolean"
+          },
+          "networkRead": {
+            "type": "boolean"
+          },
+          "siteIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30
+          }
+        },
+        "required": [
+          "membershipId",
+          "role"
+        ]
+      },
+      "ProductRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": [
+              "unit",
+              "kg",
+              "g",
+              "l",
+              "ml"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "baseUnit"
+        ]
+      },
+      "CommissionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "productId",
+          "siteId",
+          "code",
+          "quantity",
+          "issuedOn"
+        ]
+      },
+      "InputLot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          }
+        },
+        "required": [
+          "lotId",
+          "quantity"
+        ]
+      },
+      "OutputLot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "quantity"
+        ]
+      },
+      "OperationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SPLIT",
+              "MERGE",
+              "REPACKAGE"
+            ]
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputLot"
+            },
+            "maxItems": 30
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutputLot"
+            },
+            "maxItems": 30
+          },
+          "declaredLoss": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kind",
+          "siteId",
+          "inputs",
+          "outputs",
+          "declaredLoss"
+        ]
+      },
+      "DispositionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "HOLD",
+              "RECOVER",
+              "DISPOSE",
+              "LOSS"
+            ]
+          },
+          "sourceStatus": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "HELD",
+              "RECOVERED"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "lotId",
+          "siteId",
+          "kind",
+          "sourceStatus",
+          "quantity",
+          "reason",
+          "evidence"
+        ]
+      },
+      "CorrectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correctsEventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "ADD",
+              "REMOVE"
+            ]
+          },
+          "sourceStatus": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "HELD"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "lotId",
+          "siteId",
+          "correctsEventId",
+          "direction",
+          "sourceStatus",
+          "quantity",
+          "reason",
+          "evidence"
+        ]
+      },
+      "TransferDraftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceSiteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationSiteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputLot"
+            },
+            "maxItems": 30
+          },
+          "reserve": {
+            "type": "boolean"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sourceSiteId",
+          "destinationSiteId",
+          "reference",
+          "lines"
+        ]
+      },
+      "DispatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "ReceiptLine": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "GOOD",
+              "DAMAGED",
+              "HELD"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lotId",
+          "quantity",
+          "condition"
+        ]
+      },
+      "ReceiptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptLine"
+            },
+            "maxItems": 30
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "version",
+          "lines"
+        ]
+      },
+      "DiscrepancyResolutionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "discrepancyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "LATER_RECEIVED",
+              "RETURNED",
+              "ACCOUNTABLE_LOSS"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "discrepancyId",
+          "disposition",
+          "quantity",
+          "reason",
+          "evidence"
+        ]
+      },
+      "CancelRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
+      },
+      "RecallPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30
+          }
+        },
+        "required": [
+          "roots"
+        ]
+      },
+      "RecallActivationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30
+          },
+          "title": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "previewSequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "roots",
+          "title",
+          "reason",
+          "previewSequence",
+          "confirmed"
+        ]
+      },
+      "AcknowledgmentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ]
+      },
+      "DecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ObservationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "lotId",
+          "quantity",
+          "reason",
+          "evidence"
+        ]
+      },
+      "ObservationResolutionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "evidence"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "Accepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+                  "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+                  "examples": [
+                    "350",
+                    "0.125"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "quantity"
+              ]
+            },
+            "maxItems": 30
+          },
+          "invitationPath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sequence",
+          "commandId"
+        ]
+      },
+      "Membership": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "OPERATOR",
+              "PARTNER_OPERATOR",
+              "AUDITOR"
+            ]
+          },
+          "recall_manager": {
+            "type": "boolean"
+          },
+          "network_read": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "workspace_name",
+          "organization_id",
+          "organization_name",
+          "role",
+          "recall_manager",
+          "network_read",
+          "active"
+        ]
+      },
+      "Session": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name"
+            ]
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Membership"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "accessToken",
+          "user",
+          "memberships"
+        ]
+      },
+      "Lot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "base_unit": {
+            "type": "string"
+          },
+          "issuer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issuer_name": {
+            "type": "string"
+          },
+          "issued_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "expires_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_sequence": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "product_id",
+          "product_name",
+          "base_unit",
+          "issuer_id",
+          "issuer_name",
+          "issued_on",
+          "expires_on",
+          "created_sequence"
+        ]
+      },
+      "Holding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "base_unit": {
+            "type": "string"
+          },
+          "site_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "site_name": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "RESERVED",
+              "HELD",
+              "IN_TRANSIT",
+              "UNRESOLVED",
+              "RECOVERED",
+              "DISPOSED",
+              "LOST",
+              "CONSUMED"
+            ]
+          },
+          "transfer_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}(\\.[0-9]{1,3})?$",
+            "description": "Exact decimal in the product base unit; maximum three decimal places; no rounding.",
+            "examples": [
+              "350",
+              "0.125"
+            ]
+          }
+        },
+        "required": [
+          "lot_id",
+          "code",
+          "product_name",
+          "base_unit",
+          "site_id",
+          "site_name",
+          "organization_id",
+          "organization_name",
+          "status",
+          "transfer_id",
+          "quantity"
+        ]
+      },
+      "Lineage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input_lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "output_lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "input_lot_id",
+          "output_lot_id",
+          "operation_id",
+          "sequence"
+        ]
+      },
+      "TraceSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "historical": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "lots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Lot"
+            },
+            "maxItems": 2000
+          },
+          "lineage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Lineage"
+            },
+            "maxItems": 10000
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Holding"
+            },
+            "maxItems": 5000
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 200
+          },
+          "transfers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "sequence",
+          "historical",
+          "complete",
+          "scope",
+          "lots",
+          "lineage",
+          "holdings",
+          "events",
+          "transfers"
+        ]
+      },
+      "RecallPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "baseUnit": {
+            "type": "string"
+          },
+          "coverage": {
+            "type": "string"
+          },
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30
+          },
+          "affectedLots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 2000
+          },
+          "exposure": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 10000
+          },
+          "unaffected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 10000
+          },
+          "totals": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "maxItems": 10000
+          }
+        },
+        "required": [
+          "sequence",
+          "complete",
+          "baseUnit",
+          "coverage",
+          "roots",
+          "affectedLots",
+          "exposure",
+          "unaffected",
+          "totals",
+          "gaps"
+        ]
+      }
+    }
+  }
+}

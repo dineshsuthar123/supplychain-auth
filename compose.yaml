@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
+    environment:
+      POSTGRES_DB: lotline
+      POSTGRES_USER: lotline
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports: ["5433:5432"]
+    volumes: ["lotline_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lotline -d lotline"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: lotline
+      DB_USER: lotline
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:5173,http://localhost:4173}
+      SECURE_COOKIES: "false"
+      DB_POOL_SIZE: 5
+      DEBUG: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8080:8080"]
+    stop_grace_period: 25s
+volumes:
+  lotline_data:

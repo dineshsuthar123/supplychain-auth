@@ -1,127 +1,96 @@
-# SupplyPrint
+# Lotline
 
-SupplyPrint is a physical-product identity and provenance prototype. It accepts a product capture image, derives a 128-dimensional visual fingerprint through server-side ONNX inference, stores that fingerprint in PostgreSQL/pgvector, and records a durable verification/audit trail. Ledger delivery is handled asynchronously through a transactional outbox.
+**Follow the lot. Contain the fallout.**
 
-## What it does today
+Lotline is an operational traceability and recall workbench for a small manufacturer and its warehouse / retail partners. Commission stock, preserve batch contribution paths, obtain independent receipts, contain affected stock, and close an incident only after responses and quantity accounting.
 
+![Lotline trace workbench](docs/screenshots/trace-1440.png)
+
+## What works
+
+- Owner-created workspace, cooperating organizations, sites, bounded operator / partner / auditor grants, and expiring invitations.
+- Exact decimal commissioning, partial consumption, split / merge / repackage into newly identified output lots, and explicit declared loss.
+- Draft / reservation / dispatch, receiver-only acceptance, short receipts with unresolved remainders, returns and accountable loss resolutions.
+- Versioned recall preview, conservative mixed-lot exposure, synchronous holds, independent acknowledgment and recovery, overlapping incidents, late correction / reopening, and justified closure.
+- Journal-derived historical sequences, private partner scope, internal leased notifications, printable evidence exports and local hash verification.
+
+The connected coffee case starts with 1,200 units. Its descendant holdings total 1,180 received units, with 20 unresolved; 200 unrelated units stay outside known scope. Historical parents are never added to current children as extra stock.
+
+## Start from a fresh clone
+
+Requirements: Docker with Linux containers; Node 22 (local / CI pin **22.17.0**, npm **10.9.2**); Java **21.0.9** for native backend development; Python **3.14.6** for verification utilities. Docker includes the Java runtime and pinned Maven **3.9.16** wrapper.
+
+1. Copy `.env.example` to `.env`. Replace `DB_PASSWORD`, `JWT_SECRET` (random 32+ characters), and `DEMO_PASSWORD` (12+ characters). These are local choices, never built-in owner credentials.
+2. Run the API and PostgreSQL:
+
+   ```sh
+   docker compose up --build -d
+   ```
+
+3. Start the frontend in a separate terminal:
+
+   ```sh
+   cd frontend
+   npm ci
+   npm run dev
+   ```
+
+4. Open **http://localhost:5173**. Create a workspace, open its menu to add a site / product, and commission the first lot. Copy an invitation link so a second account can independently receive stock and respond to incidents.
+
+Readiness: **http://localhost:8080/actuator/health/readiness**. Health details are intentionally minimal. Durable local data resides in the PostgreSQL named volume; application restarts preserve it.
+
+For a native backend, export the variables from `.env`, start only `docker compose up db -d`, then `cd backend` and run `./mvnw spring-boot:run` (`.\mvnw.cmd` on Windows). `DB_HOST=localhost`, `DB_PORT=5433`. The frontend proxy keeps all browser API calls at `/api/v1`.
+
+## Synthetic demo and verification
+
+Set `DEMO_PASSWORD` explicitly in your terminal; the scripts do not read or seed production automatically.
+
+```sh
+python scripts/seed-demo.py --prefix lotline-demo
+python scripts/smoke.py --output artifacts/smoke
+python scripts/verify-evidence.py artifacts/smoke/lotline-evidence.zip
 ```
-JPEG/PNG capture -> ONNX embedding -> PostgreSQL pgvector -> feature hash -> ledger outbox
-fresh capture    -> ONNX embedding -> tenant-scoped cosine comparison -> verification audit event
+
+The first script leaves the coffee case ready for recall preview. Sign in as `lotline-demo+owner@example.test` or `lotline-demo+partner1@example.test` through `partner4`, using your chosen `DEMO_PASSWORD`. Smoke uses a separate unique workspace and completes containment / closure / export. See [demo instructions](docs/demo.md).
+
+```sh
+cd backend
+./mvnw -B -ntp verify
+cd ../frontend
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+npm run build
+npm run test:e2e
 ```
 
-The React SPA offers enrollment, verification, evidence lookup, and a database-backed operations dashboard. The Spring Boot service enforces JWT access roles and tenant boundaries for the core fingerprint API.
+PostgreSQL Testcontainers requires Docker. E2E requires a real API/database at `localhost:8080`, a seeded `lotline-demo` workspace, `DEMO_PASSWORD`, and `npx playwright install chromium`. Playwright starts the production frontend preview at port 4173; it never substitutes mock workspace data. [Executed results and measured limits](docs/verification.md) distinguish local verification from deployment.
 
-## Honest capability statement
+## Architecture and deployment
 
-**Implemented:** real server-side image ingestion; ONNX inference; PostgreSQL/pgvector persistence; transactional outbox; tenant-scoped core queries; JWT roles; refresh-token rotation; image magic-byte validation; audit events; Micrometer metrics; and database-backed Locust tooling.
+One Java 21 Spring Boot application, JDBC domain services, plain PostgreSQL, an append-only accepted journal, derived balances, and a bounded internal outbox. Vite / TypeScript / React Router / TanStack Query provide the daily workbench. The public SVG ribbon renders immediately and loads GSAP separately for its optional animation, with a complete reduced-motion state. Fonts are self-hosted, with OFL licenses in `frontend/public`.
 
-**Prototype/experimental:** anti-counterfeit accuracy. The repository does not include a representative, controlled real product-capture dataset or a validated held-out evaluation. Do not make field-accuracy or production anti-counterfeit claims until `scripts/evaluate_model.py` reports defensible FAR/FRR/EER/ROC-AUC results on such data.
-
-**Local-only by default:** blockchain delivery is disabled in Docker Compose. Production requires a deployed contract, managed RPC, secret management, and reconciliation controls.
-
-## Architecture
-
-| Layer | Implementation |
+| Read | Purpose |
 |---|---|
-| Web | React 18 SPA |
-| API | Spring Boot 3.2 product-service |
-| Identity | JWT access token, rotating HTTP-only refresh token, roles |
-| AI | ONNX Runtime, grayscale 256x256 input, 128-D L2-normalized embedding |
-| Database | PostgreSQL 15 + pgvector, Flyway migrations |
-| Isolation | Tenant ID in user, fingerprint, outbox, and verification-event records |
-| Provenance | Transactional blockchain outbox + Web3j integration |
-| Operations | Spring Actuator, Prometheus, Grafana, Micrometer timers |
+| [Architecture](docs/architecture.md) | Domain vocabulary, transaction guard, quantities, history, scope |
+| [API](docs/api.md) / [OpenAPI](docs/openapi.json) | Commands, decimal DTOs, stable errors, bounds |
+| [Security](docs/security.md) | Session rotation, site grants, runtime database permissions |
+| [Deployment](docs/deployment.md) | Render first, concrete Vercel rewrite, secrets, backups, cutover |
+| [Implementation notes](docs/implementation-notes.md) | Starting commit, preserved local work, keep/delete decisions |
 
-## Roles
+`render.yaml` defaults to a **temporary synthetic demo**. Durable always-on service / database selections require the owner’s billing decision. The authoritative `frontend/vercel.json` contains an intentionally invalid upstream until a real Render API exists:
 
-| Role | Allowed core actions |
-|---|---|
-| `MANUFACTURER` | Enroll product captures; verify; read evidence/dashboard |
-| `VERIFIER` | Verify captures; read evidence/dashboard |
-| `AUDITOR` | Read evidence/dashboard |
-| `ADMIN` | All core actions and metrics access |
-
-## Local run
-
-```powershell
-docker compose up -d postgresql product-service
-cd frontend
-npm.cmd start
+```sh
+node scripts/configure-vercel.mjs https://YOUR-ACTUAL-API.onrender.com
+python scripts/check-deployment.py
 ```
 
-Service health: `http://localhost:10000/actuator/health`  
-PostgreSQL host port: `5433`  
-Frontend: `http://localhost:3000`
+Live Vercel / Render deployment and HTTPS proxy cookies are **unverified** without hosting account access. Exact remaining steps and the deployed cookie smoke test are in [deployment.md](docs/deployment.md).
 
-The configured browser origin defaults to `http://localhost:3000`. Override it with `SUPPLYPRINT_CORS_ALLOWED_ORIGINS` for another trusted origin.
+## Product limits
 
-## Core API
+Lotline records partner assertions and enforces its connected command paths. It does not physically verify counts, stop vehicles, or discover unreported events. Unknown custody can be recorded as a visible evidence gap. An export hash verifies snapshot bytes, not physical authenticity or an external trust anchor.
 
-| Route | Role | Purpose |
-|---|---|---|
-| `POST /auth/register` | Public | Create a tenant-owned operator account |
-| `POST /auth/login` | Public | Sign in and obtain access/refresh session |
-| `POST /api/enroll/image` | Manufacturer/Admin | Enroll a JPEG/PNG physical capture |
-| `POST /api/verify/image` | Verifier/Manufacturer/Admin | Verify a fresh physical capture |
-| `GET /api/verify/{productId}/log` | Auditor/Verifier/Manufacturer/Admin | Read tenant-scoped evidence |
-| `GET /api/dashboard` | Auditor/Verifier/Manufacturer/Admin | Read tenant-scoped operational telemetry |
-
-## Testing and benchmarks
-
-Run the real-image seed path only with approved captures:
-
-```powershell
-$env:BENCHMARK_USERNAME='manufacturer@example.com'
-$env:BENCHMARK_PASSWORD='your-password'
-python performance/seed_real_images.py --dataset performance/datasets/sample
-```
-
-Run the mixed real-flow benchmark:
-
-```powershell
-python -m locust -f performance/locustfile_supplyprint_real_flow.py --headless `
-  --host http://localhost:10000 -u 30 -r 5 -t 5m `
-  --csv performance/results/real_flow
-```
-
-The default dataset folder is intentionally empty. The runner does not create fake products or vectors. See [benchmarking](docs/benchmarking.md) and [dataset instructions](performance/datasets/README.md).
-
-## Current measured infrastructure result
-
-Local PostgreSQL aggregate-read benchmark, 30 users for 45 seconds: 442 requests, 0% failures, p50 **7 ms**, p95 **11 ms**, p99 **14 ms**. This measures the tenant-dashboard database read path only; it is not an image-verification throughput claim and does not validate detection accuracy.
-
-## Real-world validation status
-
-Dataset status: **insufficient**. No real labeled product-capture images are committed to this repository. The project includes a collection protocol, validator, API-only smoke test, evaluator, and real-flow Locust runner, but their reports remain deliberately cautious until real captures are supplied.
-
-```powershell
-python scripts/validate_dataset.py
-python scripts/smoke_real_image_flow.py --dataset datasets/eval/products
-python scripts/evaluate_model.py --dataset datasets/eval/products
-$env:BENCHMARK_USERNAME='manufacturer@example.com'
-$env:BENCHMARK_PASSWORD='your-password'
-python performance/seed_real_images.py --dataset performance/datasets/sample
-python -m locust -f performance/locustfile_supplyprint_real_flow.py --headless --host http://localhost:10000 -u 1 -r 1 -t 1m
-$env:METRICS_BEARER_TOKEN='admin-access-token'
-python scripts/check_metrics.py
-```
-
-See [real dataset collection](docs/real-dataset-collection.md), [metrics validation](docs/metrics-validation.md), and the [current validation report](docs/current-validation-report.md). SupplyPrint remains a production-style prototype until real-dataset results are available.
-
-## Documentation
-
-- [Production-readiness audit](docs/production-readiness-audit.md)
-- [Security model](docs/security.md)
-- [Tenant isolation](docs/tenant-isolation.md)
-- [Observability](docs/observability.md)
-- [Database performance](docs/database-performance.md)
-- [Model evaluation](docs/model-evaluation.md)
-- [Benchmarking](docs/benchmarking.md)
-- [Technical project summary](docs/SUPPLYPRINT_PROJECT_SUMMARY.docx)
-
-## Next roadmap
-
-1. Collect a controlled real capture dataset and validate model threshold/accuracy.
-2. Add enterprise tenant membership/invitation and optional PostgreSQL RLS.
-3. Deploy ledger credentials and asynchronous reconciliation to managed infrastructure.
-4. Run soak and capacity tests that include image decode, ONNX inference, pgvector lookup, and audit writes.
+Transformations keep the **same product and base unit**. A recall groups roots with the same base unit. No inferred kg-to-piece yield, external carrier / email service, binary attachment store, ERP, billing, or physical authenticity classifier is included. Graphs / exports are bounded and return an explicit incomplete or blocked result. Legacy `public` data is left untouched; its images or vectors are not converted into genealogy.

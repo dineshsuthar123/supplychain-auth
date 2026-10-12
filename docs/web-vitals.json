@@ -1,0 +1,19 @@
+{
+  "conditions": {
+    "browser": "Playwright Chromium 1.58.2",
+    "viewport": "1440×1000",
+    "cpuSlowdown": 4,
+    "latencyMs": 150,
+    "downloadMbps": 1.6,
+    "uploadMbps": 0.75,
+    "cache": "fresh browser context",
+    "page": "gzip-compressed production public entry on loopback",
+    "samples": 1
+  },
+  "metrics": {
+    "LCP_ms": 2108,
+    "INP_ms": 128,
+    "CLS": 0
+  },
+  "limits": "One lab sample with two real synthetic-walkthrough interactions. Not a field percentile or a deployed Vercel/Render measurement."
+}
