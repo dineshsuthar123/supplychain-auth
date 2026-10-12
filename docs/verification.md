@@ -1,6 +1,19 @@
 # Executed verification — 12 October 2026
 
-This report covers local execution against real PostgreSQL and real application APIs. Live Vercel/Render URLs, provider TLS/cookie forwarding, hosted CI and paid backup restoration remain unverified. No hosting credentials or billing commitments were used.
+This report covers local execution and the public Vercel/Render demo against real PostgreSQL and real APIs. Hosting access was authorized and a free temporary database was explicitly selected. No paid plan changes were made. The demo database expires on **11 November 2026**; durable operations need a separate hosting and recovery decision.
+
+## Public deployment verification
+
+On 12 October 2026, [the frontend](https://supplyledger.vercel.app/) returned HTTP 200 and [Render readiness](https://supplychain-auth.onrender.com/actuator/health/readiness) returned UP. [GitHub CI](https://github.com/dineshsuthar123/supplychain-auth/actions/runs/38284301905) passed both backend and frontend/E2E jobs for `de5f6c8f`.
+
+- The complete synthetic smoke ran through the actual HTTPS frontend proxy: 1,180 recovered, 20 accountable loss, incident CLOSED, projections matched. Its ZIP verified all seven payloads at sequence 46.
+- After the hosted runtime restart reached LIVE, the same workspace, incident status and exact quantities were read again and matched.
+- Live database sessions use the restricted runtime role; accepted-event UPDATE and schema CREATE are denied. Flyway uses separate owner credentials.
+- A 144,063-byte logical backup of the hosted lotline schema was restored into a separate local PostgreSQL database. A separate API verified the same closed incident, journal projection and all seven re-exported payload hashes. The cloud database was not restored or replaced. Paid provider PITR remains untested.
+- Windows start/stop helpers built the application in an isolated Compose project and served the frontend successfully. Stop preserved the PostgreSQL volume.
+- Vitest 4.1.11, typecheck, lint, formatting, unit test and build passed. Fresh local and Vercel installs reported zero npm audit findings.
+- All **14 workflow/interface/HTTPS-cookie checks** passed on the full public browser run, including the coffee case, owner creation, cookie rotation/logout, stale recall confirmation and four responsive widths. No check was skipped. The performance harness initially failed to expose its measurement-library global in the initialization scope; that setup was corrected and the isolated measurement rerun passed. Product code and CSP were unchanged.
+- [Public web-vitals sample](web-vitals-public.json): **LCP 2,412 ms, INP 176 ms, CLS 0**, at the public URL with a fresh Chromium context, CPU slowed 4×, added 150 ms latency and 1.6 Mbps download. One lab sample, not a field percentile or throughput guarantee.
 
 The cinematic frontend follow-up re-ran typecheck, lint, formatting, the decimal unit test, the production build and the complete real-API browser suite. Its original cast, intro, motion controls and design references are documented in [frontend-direction.md](frontend-direction.md). Backend and container results below are from the preceding pivot validation; backend code was unchanged in this frontend follow-up.
 
@@ -17,7 +30,7 @@ The cinematic frontend follow-up re-ran typecheck, lint, formatting, the decimal
 | Packet | `python scripts/verify-evidence.py artifacts/docker-smoke-final/lotline-evidence.zip` — verified all **7 payload files**, sequence 46. Integration tests reject changed bytes and validate snapshot scope. |
 | Restart | Restarted `lotline-docker-smoke`, then `python scripts/check-persistence.py artifacts/docker-smoke-final/fixture.json --base http://localhost:8081` — same workspace, CLOSED incident, 1,180 recovered, 20 accountable loss, zero nonterminal affected quantity, projection matches. Browser reload/session rotation also checked. |
 | API contract | `python scripts/generate-api.py --check` — generated OpenAPI command schemas and TypeScript DTOs match source. |
-| Deployment | `python scripts/check-deployment.py --allow-unconfigured --official-schema` and `docker compose --env-file artifacts/local-runtime.env config --quiet` — passed. Strict deployment check deliberately blocks until the real HTTPS upstream is configured. |
+| Deployment | Render schema and Compose checks passed during local validation. After the actual HTTPS upstream was configured, strict `python scripts/check-deployment.py` passed. |
 | Runtime privileges | Ran the documented privilege script against the local synthetic database: runtime role can SELECT accepted events; UPDATE is denied. Separate application/Flyway credentials require explicit hosted configuration. |
 
 The domain tests cover partial conservation and declared loss, exact precision, merge/diamond contribution deduplication, whole commingled output exposure, receiver-only receipts, concurrent duplicate/competing commands, recall/dispatch races, reservations and in-transit holds, stale previews, independent acknowledgment versus recovery, overlapping incidents, late evidence/reopening, justified closure, historical snapshots, site/workspace/partner isolation, revoked permission rechecks, export escaping/scope, projection rebuild, and outbox crash/lease/retry/idempotent delivery.
@@ -52,10 +65,10 @@ The planner chose sequential scans for tiny journal/event tables and indexed loo
 
 [Public-entry web-vitals sample](web-vitals.json): **LCP 2,448 ms, INP 80 ms, CLS 0** for the cinematic frontend. Fresh Chromium context at 1440×1000, CPU slowed 4×, network latency 150 ms, 1.6 Mbps download / 0.75 Mbps upload, gzip-compressed production preview. The preceding pivot's final sample was 2,108 / 128 / 0; the cinematic follow-up adds original SVG artwork, the opening, and lazily loaded GSAP / ScrollTrigger. Daily app feature routes and graph remain separate chunks. This is a lab sample with two interactions, not a field percentile or deployed-provider measurement.
 
-## Remaining deployment and product limits
+## Deployment scope and product limits
 
 Verified local URLs: frontend `http://localhost:4173`, native readiness `http://localhost:8080/actuator/health/readiness`, container readiness `http://localhost:8081/actuator/health/readiness`.
 
-Follow [deployment.md](deployment.md): deploy Render API/database, set the exact frontend origin, run `node scripts/configure-vercel.mjs https://ACTUAL-API.onrender.com`, commit the concrete rewrite, import `frontend` into Vercel, then execute the HTTPS proxy smoke test. The current invalid upstream is an intentional deployment guard. Provider build versions, TLS, cookie forwarding and restore exercises require the actual accounts.
+See [deployment.md](deployment.md) for actual project settings, observed provider build versions and the temporary database expiry. The configured upstream is `https://supplychain-auth.onrender.com`. Local benchmark results remain local measurements; public smoke success does not establish capacity for larger business workloads.
 
 Partner reports can be wrong or absent. Transfer responsibility is not confirmed physical location. Unknown custody observations are evidence gaps, not extra inventory. Holds enforce connected Lotline commands; they cannot stop external movement. Manifest hashes verify bytes, not physical authenticity or an independent trust anchor. Same-product/base-unit transformations only; no kg-to-piece conversion. Temporary free hosting can sleep and its database can expire; it is unsuitable for durable operational records without an owner-selected durable plan.

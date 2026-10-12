@@ -2,7 +2,7 @@
 -- psql -v runtime_password=<secret> -f scripts/harden-runtime.sql
 -- Never use shell tracing or paste the password into committed commands.
 CREATE ROLE lotline_runtime LOGIN PASSWORD :'runtime_password';
-GRANT CONNECT ON DATABASE lotline TO lotline_runtime;
+SELECT format('GRANT CONNECT ON DATABASE %I TO lotline_runtime', current_database()) \gexec
 GRANT USAGE ON SCHEMA lotline TO lotline_runtime;
 GRANT SELECT,INSERT ON ALL TABLES IN SCHEMA lotline TO lotline_runtime;
 REVOKE ALL ON lotline.lotline_schema_history FROM lotline_runtime;

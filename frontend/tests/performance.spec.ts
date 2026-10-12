@@ -19,10 +19,12 @@ test('measure public entry vitals under documented desktop throttling', async ({
     uploadThroughput: 750_000 / 8,
   });
   await protocol.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  await page.goto('/');
-  await page.addScriptTag({
-    content: readFileSync(path.resolve('node_modules/web-vitals/dist/web-vitals.iife.js'), 'utf8'),
+  await page.addInitScript({
+    content:
+      readFileSync(path.resolve('node_modules/web-vitals/dist/web-vitals.iife.js'), 'utf8') +
+      '\nwindow.webVitals = webVitals;',
   });
+  await page.goto('/');
   await page.evaluate(() => {
     const w = window as unknown as {
       webVitals: {
@@ -50,12 +52,12 @@ test('measure public entry vitals under documented desktop throttling', async ({
       downloadMbps: 1.6,
       uploadMbps: 0.75,
       cache: 'fresh browser context',
-      page: 'gzip-compressed production public entry on loopback',
+      page: process.env.APP_URL ?? 'gzip-compressed production public entry on loopback',
       samples: 1,
     },
     metrics: { LCP_ms: metrics.LCP ?? null, INP_ms: metrics.INP ?? null, CLS: metrics.CLS ?? null },
     limits:
-      'One lab sample with two real synthetic-walkthrough interactions. Not a field percentile or a deployed Vercel/Render measurement.',
+      'One lab sample with two real synthetic-walkthrough interactions at the stated page. Not a field percentile.',
   };
   mkdirSync(path.resolve('../artifacts'), { recursive: true });
   writeFileSync(

@@ -99,7 +99,7 @@ node scripts/configure-vercel.mjs https://YOUR-ACTUAL-API.onrender.com
 python scripts/check-deployment.py
 ```
 
-The existing provider projects are being cut over to this implementation. Executed public deployment checks and temporary hosting limits are recorded in [deployment.md](docs/deployment.md).
+The existing provider projects now run this implementation. Executed public deployment checks and temporary hosting limits are recorded in [deployment.md](docs/deployment.md). The free demo database expires on **11 November 2026**.
 
 ## Product limits
 

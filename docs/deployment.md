@@ -1,6 +1,12 @@
 # Vercel frontend + Render API / PostgreSQL
 
-Live deployment is unverified. No Render/Vercel account credentials were available in this task, and no billing commitments were created. Code, Docker build, JDBC conversion and Blueprint schema validation are locally verifiable. The Vercel upstream deliberately uses `.invalid` until a real Render service exists.
+The existing projects were updated on **12 October 2026**: [public frontend](https://supplyledger.vercel.app/) and [API readiness](https://supplychain-auth.onrender.com/actuator/health/readiness). The API now builds `backend/` from `feat/lotline-readiness`; Vercel builds `frontend/` with Vite. The concrete API rewrite is committed. Both returned HTTP 200 after deployment; readiness reported UP.
+
+The owner explicitly selected a **free temporary demo database**. The new `lotline-demo-db` is in Oregon beside the existing API and expires **11 November 2026**. No paid plan changes were made. The root Blueprint remains a fresh-project Singapore template; it was not used to move the existing Oregon service. Original service settings were backed up privately before cutover.
+
+Vercel's observed build used Node **22.23.2**, npm **10.9.8**, and builder CLI **62.7.0**; the local deploy CLI was **63.1.2**. Its build completed with zero npm audit findings. Local/CI pins remain Node 22.17.0 / npm 10.9.2. Vitest was updated to 4.1.11 and locally rechecked.
+
+Public smoke, HTTPS cookie forwarding/rotation/logout, restart persistence and an isolated restore from the hosted logical backup passed; see [executed verification](verification.md). Runtime database access uses `lotline_runtime`; Flyway uses separate migration credentials. Render automatic deployments wait for branch checks to pass. Private provider credentials, project links, database dumps and synthetic-account passwords remain outside Git.
 
 ## 1. Choose an explicitly temporary or durable setup
 
@@ -52,7 +58,7 @@ python scripts/smoke.py --base https://ACTUAL-FRONTEND --origin https://ACTUAL-F
 python scripts/verify-evidence.py artifacts/deployed-smoke/lotline-evidence.zip
 ```
 
-Set `APP_URL`, `SMOKE_EMAIL` and `SMOKE_PASSWORD` to that HTTPS frontend / isolated smoke owner, then run `npx playwright test tests/proxy.spec.ts` from frontend. It verifies host-only Secure/HttpOnly cookie forwarding, rotation on reload, logout deletion and no-store headers through Vercel → Render. This test is explicitly skipped locally; localhost cookies do not prove deployed proxy correctness. Run the broader domain E2E against the isolated backend after adjusting its local-cookie assertion if using HTTPS.
+Set `APP_URL`, `SMOKE_EMAIL` and `SMOKE_PASSWORD` to that HTTPS frontend / isolated smoke owner, then run `npx playwright test tests/proxy.spec.ts` from frontend. It verifies host-only Secure/HttpOnly cookie forwarding, rotation on reload, logout deletion and no-store headers through Vercel → Render. This test is explicitly skipped locally; localhost cookies do not prove deployed proxy correctness. The broader domain E2E chooses the HTTPS cookie name automatically.
 
 ## Backups, cutover and rollback
 

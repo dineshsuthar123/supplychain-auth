@@ -33,6 +33,8 @@ API responses are private/no-store. Pending command **keys and content hashes**,
 
 The temporary Blueprint initially uses the generated database owner for bootstrap; append-only triggers still reject normal rewrites. For durable use, split privileges before accepting real operational records. Future migrations must extend runtime grants deliberately. Do not alter legacy `public` privileges or data as part of this cutover.
 
+The hosted demo's dedicated runtime role was created and checked on 12 October 2026: accepted-event SELECT is allowed, while event UPDATE and schema CREATE are denied. The script selects the actual database name, including Render's generated suffix. Migration and runtime credentials are stored privately. A temporary single-address external allow rule was removed after verification.
+
 Never commit `.env`, dump credentials, enable request-body / JDBC parameter logging around auth, or put private secrets in `VITE_*`. No binary uploads or local-disk evidence are used. Store backups/export packets privately: they contain network assertions and actor information.
 
 This product does not establish legal compliance, certify product authenticity, or verify that a partner’s physical assertion is true.
