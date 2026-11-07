@@ -155,6 +155,12 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'create' | 'invit
               </>
             )}
             {error !== null && <ErrorNotice error={error} />}
+            {busy && (
+              <p role="status" className="muted">
+                Connecting to the server… The free demo can take up to two minutes to wake up. Keep
+                this page open; your form is preserved.
+              </p>
+            )}
             <button className="button" disabled={busy}>
               {busy
                 ? 'Connecting…'

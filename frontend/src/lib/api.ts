@@ -1,4 +1,5 @@
 import type { Session } from './types';
+import { waitForBackend } from './backend';
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -48,6 +49,19 @@ async function request<T>(
   key?: string,
   retry = true,
 ): Promise<T> {
+  if (path.startsWith('/auth/')) {
+    try {
+      await waitForBackend();
+    } catch {
+      throw new ApiError(
+        0,
+        navigator.onLine ? 'BACKEND_WARMING' : 'OFFLINE',
+        navigator.onLine
+          ? 'The server is still unavailable after waiting for startup. Your request has not been sent. Please try again; your form is unchanged.'
+          : 'You are offline. Reconnect before submitting a command.',
+      );
+    }
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {

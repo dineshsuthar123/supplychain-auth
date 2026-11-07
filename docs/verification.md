@@ -1,5 +1,13 @@
 # Executed verification — 12 October 2026
 
+## Startup recovery — 7 November 2026
+
+The reported signup screen stopped waiting after 25 seconds. Render's free service can take about a minute to wake after inactivity. At inspection, direct liveness/readiness and the Vercel API rewrite all returned HTTP 200; a separate synthetic account registered through the public frontend in 2.6 seconds and logged in successfully.
+
+Authentication now waits for a successful, uncached health response before sending its POST. Startup probes share one in-flight promise, expire their readiness cache after 30 seconds, and stop after a two-minute budget. Only health GETs retry automatically; authentication commands retain their existing keys and are never automatically replayed after a lost response. The form shows startup progress and keeps its fields intact.
+
+Typecheck, lint, formatting, production build and **eight unit tests** passed, including startup beyond 25 seconds, shared probes/cache expiry, HTML startup pages, bounded failures/hanging requests, offline behavior and no authentication-command replay. No paid hosting changes were made.
+
 This report covers local execution and the public Vercel/Render demo against real PostgreSQL and real APIs. Hosting access was authorized and a free temporary database was explicitly selected. No paid plan changes were made. The demo database expires on **11 November 2026**; durable operations need a separate hosting and recovery decision.
 
 ## Public deployment verification
