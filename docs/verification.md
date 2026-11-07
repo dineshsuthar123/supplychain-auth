@@ -8,6 +8,8 @@ Authentication now waits for a successful, uncached health response before sendi
 
 Typecheck, lint, formatting, production build and **eight unit tests** passed, including startup beyond 25 seconds, shared probes/cache expiry, HTML startup pages, bounded failures/hanging requests, offline behavior and no authentication-command replay. No paid hosting changes were made.
 
+The fix was deployed to the existing public Vercel URL. Two targeted public browser checks passed: real HTTPS cookie rotation/logout, and a simulated 30-second cold start followed by actual API signup. The latter confirmed that no registration POST was sent during startup, form values remained intact, and exactly one registration reached the real API after readiness returned. Only the startup health responses were simulated; signup and session handling used the deployed backend.
+
 This report covers local execution and the public Vercel/Render demo against real PostgreSQL and real APIs. Hosting access was authorized and a free temporary database was explicitly selected. No paid plan changes were made. The demo database expires on **11 November 2026**; durable operations need a separate hosting and recovery decision.
 
 ## Public deployment verification
