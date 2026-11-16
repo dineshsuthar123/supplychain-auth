@@ -110,6 +110,11 @@ for service in ['api','db']:
     report['checks'][service+'_architecture']=arch
 api_info=json.loads(command(['docker','inspect',ids['api']]).stdout)[0]
 if api_info['Config']['User']!='10001:10001' or not api_info['HostConfig']['ReadonlyRootfs']:raise RuntimeError('Container privilege policy failed.')
+maps=command(['docker','exec',ids['api'],'cat','/proc/1/maps']).stdout.decode()
+if any('/opt/onnx/'+name not in maps for name in ['libonnxruntime.so','libonnxruntime4j_jni.so']):raise RuntimeError('The exact read-only native libraries were not mapped from the image.')
+mounts=command(['docker','exec',ids['api'],'cat','/proc/mounts']).stdout.decode().splitlines()
+if not any(line.split()[1]=='/tmp' and 'noexec' in line.split()[3].split(',') for line in mounts):raise RuntimeError('Temporary storage must remain noexec.')
+report['checks'].update(onnx_native_library_directory='/opt/onnx',temporary_storage_noexec=True)
 ports={service:json.loads(command(['docker','inspect',identifier]).stdout)[0]['HostConfig']['PortBindings'] for service,identifier in ids.items()}
 if ports['db']:raise RuntimeError('Database has a published port.')
 if any(x['HostIp']!='127.0.0.1' for x in ports['api'].get('8080/tcp',[])):raise RuntimeError('API exposed outside loopback.')

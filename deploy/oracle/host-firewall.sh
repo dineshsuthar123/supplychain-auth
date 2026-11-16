@@ -2,11 +2,14 @@
 set -euo pipefail
 [[ "$EUID" -eq 0 ]] || exit 1
 ssh_cidr=$(cat /etc/supplyprint-ssh-cidr)
+interface=$(ip -4 route show default | awk 'NR==1 {print $5}')
+[[ -n "$interface" ]] || { echo 'No default IPv4 interface; inspect networking before changing the firewall.' >&2; exit 1; }
 iptables -N SP-INPUT 2>/dev/null || true
 iptables -F SP-INPUT
 iptables -A SP-INPUT -i lo -j ACCEPT
 iptables -A SP-INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -A SP-INPUT -p udp -s 10.71.0.0/16 --sport 67 --dport 68 -j ACCEPT
+# Preserve DHCP replies on the primary interface, including OCI's link-local service.
+iptables -A SP-INPUT -i "$interface" -p udp --sport 67 --dport 68 -j ACCEPT
 iptables -A SP-INPUT -p tcp -s "$ssh_cidr" --dport 22 -j ACCEPT
 iptables -A SP-INPUT -p tcp -m multiport --dports 80,443 -j ACCEPT
 iptables -A SP-INPUT -p icmp -m limit --limit 10/second -j ACCEPT
@@ -16,7 +19,6 @@ iptables -C INPUT -j SP-INPUT 2>/dev/null || iptables -I INPUT 1 -j SP-INPUT
 iptables -N SP-DOCKER 2>/dev/null || true
 iptables -F SP-DOCKER
 iptables -A SP-DOCKER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
-interface=$(ip -4 route show default | awk 'NR==1 {print $5}')
 iptables -A SP-DOCKER -i "$interface" -p tcp -m conntrack --ctorigdstport 80 -j RETURN
 iptables -A SP-DOCKER -i "$interface" -p tcp -m conntrack --ctorigdstport 443 -j RETURN
 iptables -A SP-DOCKER -i "$interface" -j DROP

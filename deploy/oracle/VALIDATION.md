@@ -19,7 +19,7 @@ Work is in isolated branch `deploy/oracle-always-free`, based on main `a1ff4ef8`
 | Configuration | Production Compose validation, ARM64 Caddy configuration validation, shell syntax and Python compilation passed. |
 | Cost guard | **6 tests pass**, also under `python -O`; guards reject pre-existing CPU/RAM/storage over-allocation, paid/wrong-region shapes, missing inventory/quota and insufficient quota. Reuse is counted without allocating a duplicate VM. They do not use disableable Python assertions. |
 | Live local acceptance | **Passed** on Docker Desktop with ARM64 emulation: actual API/database `uname -m=aarch64`, trusted local HTTPS, real 128-dimensional ONNX output (norm 1.0000000138165843), two-tenant isolation, secure-cookie refresh, UID 10001/read-only root, private PostgreSQL, accepted record surviving API/database restart, isolated dump restoration, and a deliberately failed image update restoring the previous image and record. Private evidence: `reports/oracle/local-validation.json`. |
-| Native ARM64 CI | Workflow prepared for standard public-repository `ubuntu-24.04-arm`; its actual run result is recorded after push. Local emulation alone is not native-host evidence. |
+| Native ARM64 CI | The first native `ubuntu-24.04-arm` run passed all 16 backend tests, including real inference, but exposed JNI extraction failing on the container's noexec `/tmp`. The Dockerfile now extracts the exact 1.17.3 ARM64 libraries into root-owned `/opt/onnx` at build time and uses ONNX's native-path property. Temporary storage remains noexec; acceptance checks inspect actual mapped library paths. The corrected full-stack run must pass before deployment. |
 
 ## Audit findings and boundaries
 
@@ -32,6 +32,8 @@ The legacy benchmark controller is excluded from the Oracle profile, avoiding in
 The unchanged SupplyPrint SPA persists access tokens in localStorage, has no automatic refresh, and performs client-only logout. It is not declared browser-production-ready by this backend deployment. Frontend routing/session work is separate. The current deployed Lotline app has a different API and is not repointed here.
 
 The controlled image is an MIT-licensed Fashion-MNIST test capture, losslessly encoded as PNG with its license/source/hash in test resources. Self-matching inference and API plumbing are **not anti-counterfeit accuracy evidence**. There is no field-accuracy, six-project throughput or cloud-capacity claim.
+
+The packaged model is byte-for-byte identical to the committed 4,439,288-byte file: SHA-256 `653f26fee45d6e90e68819634dde74c3662550f7e1cdc17ae1d5e1ee39f17330`. The native-path setting is supported by the [pinned upstream loader](https://github.com/microsoft/onnxruntime/blob/v1.17.3/java/src/main/java/ai/onnxruntime/OnnxRuntime.java).
 
 ## Required cloud acceptance
 

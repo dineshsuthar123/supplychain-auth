@@ -92,6 +92,8 @@ The current SupplyPrint SPA reads `REACT_APP_API_BASE`, stores access tokens in 
 
 Public proxy routes are the requested auth, image enrollment/verification, evidence, dashboard and minimal `/actuator/health`. Swagger, metrics, SIWE, raw client embeddings and legacy bypass routes are blocked by both proxy and the Oracle application policy. Only the proxy publishes public ports. PostgreSQL has no host port; API readiness is bound to host loopback.
 
+Host rules preserve DHCP replies and the existing Oracle image's outbound iSCSI/service rules. Do not flush those provider rules or enable UFW blindly: Oracle documents [DHCP and boot-volume availability risks](https://docs.oracle.com/en-us/iaas/Content/Compute/References/bestpracticescompute.htm). Inspect lease renewal, the effective rules and second-session SSH before testing a reboot.
+
 ## Database permissions, operator setup and security
 
 PostgreSQL 16 / pgvector is self-hosted. Initial setup creates `supplyprint_migration` as schema owner and `supplyprint_app` with only application DML, no superuser/role/database/schema creation and no migration-history writes. The database administrator password is not supplied to the API. Flyway performs the unchanged eight migrations with its separate owner; checksums are never baselined around errors. Pool size is five.
