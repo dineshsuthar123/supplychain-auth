@@ -6,9 +6,9 @@ This deployment targets **SupplyPrint from main**, not the separate Lotline appl
 
 Planned infrastructure is one **VM.Standard.A1.Flex, 2 OCPUs, 12 GB RAM, Ubuntu 24.04 ARM64, 50 GB boot storage**, in **ap-hyderabad-1 only when it is the tenancy home region**. Existing A1 allocations and every home-region boot/block volume count against the 2/12/200 limits. There is no paid fallback, account upgrade, NAT gateway, load balancer, Kubernetes or managed database.
 
-`oci-infra.py inspect` inventories all accessible compartments and fails closed when permissions, quota, capacity or eligibility cannot be verified. `provision` repeats that inventory and also requires current, tenancy-matched Console evidence of a Free Tier account and the Always Free label. API shape billing must be ALWAYS_FREE or LIMITED_FREE; PAID/unknown is rejected. Safety checks remain active under `python -O`.
+`oci-infra.py inspect` inventories all accessible compartments and fails closed when permissions, quota or eligibility cannot be verified. `capacity` also queries Oracle's actual host-capacity report. `provision` repeats these checks and requires current, tenancy-matched evidence of a Free Tier account. Record the actual evidence source: owner Console confirmation for commercial account type, authenticated APIs for the home region/shape/image, and current official Always Free documentation for the allocation ceilings. Never claim a Console label was directly observed when it was not. API shape billing must be ALWAYS_FREE or LIMITED_FREE; PAID/unknown is rejected. Safety checks remain active under `python -O`.
 
-The script records each created resource in private `state/provisioned.json`. A failed launch never deletes resources or volumes automatically. If a launch returns out-of-capacity, review the saved state and wait for capacity; do not upgrade or duplicate the VM.
+The script records each created resource in private `state/provisioned.json`. A failed launch never deletes resources or volumes automatically. If a launch returns out-of-capacity, retain the saved network and use `retry-launch` later. It repeats the tenancy/cost/evidence/capacity checks, rejects a saved VM or uncertain launch outcome, verifies the saved subnet/SSH rules, and creates only the fixed 2-OCPU/12-GB VM if capacity is confirmed. It never creates another VCN, upgrades the account or substitutes a paid shape.
 
 Authoritative limits and idle-reclamation policy: [Oracle Always Free](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm). Availability and remaining free capacity must be checked in the actual tenancy. OCI can reclaim an idle VM; monitoring must not generate synthetic workload to evade this policy.
 
@@ -38,6 +38,14 @@ Authoritative limits and idle-reclamation policy: [Oracle Always Free](https://d
    ```
 
    If an eligible A1 VM already exists, first use `inspect --reuse-instance INSTANCE_OCID` instead. This verifies total usage without adding another allocation; inspect its workloads and SSH access before planning any host changes. The fresh-host bootstrap intentionally refuses existing containers/data volumes or an unavailable existing Docker daemon.
+
+   After a recorded host-capacity failure, run `capacity` for a report or repeat the same provision arguments with **`retry-launch` replacing `provision`**. Refresh factual account/evidence verification if it is older than 24 hours. On this configured Windows workstation, the SDK is installed at `reports/oracle/oci-venv/Scripts/python.exe`; for a read-only check run:
+
+   ```powershell
+   & reports/oracle/oci-venv/Scripts/python.exe deploy/oracle/oci-infra.py capacity
+   ```
+
+   There is no background retry loop. Oracle documents [out-of-host-capacity troubleshooting](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/troubleshooting-out-of-host-capacity.htm); this tenancy has only one availability domain. Switching regions or upgrading is outside this zero-cost design. The smaller 1-OCPU/6-GB configuration is checked diagnostically, never selected automatically.
 
 6. Confirm the SSH host-key fingerprint through the OCI Console connection before adding it to a private `known_hosts`. Keep StrictHostKeyChecking enabled. Connect as Ubuntu's `ubuntu` administrator. Copy the reviewed branch to `/opt/supplyprint` and the deployment public key to the VM.
 7. Run `sudo env SSH_CONNECTION="$SSH_CONNECTION" bash /opt/supplyprint/deploy/oracle/bootstrap-host.sh APPROVED_IP/32 DEPLOYMENT_PUBLIC_KEY_FILE`. Use `deployment_ed25519.pub` here, not the administrator key. It installs signed Docker packages and security updates, disables password login, and applies host and Docker ingress filters. It targets a fresh Ubuntu ARM64 VM; existing hosts need a separate reviewed maintenance plan. **Keep the original SSH session open and verify a second key-based login.**

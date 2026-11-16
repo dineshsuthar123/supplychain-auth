@@ -42,6 +42,28 @@ def enforce(snapshot):
     require(snapshot['shape_billing_type'] in ['ALWAYS_FREE','LIMITED_FREE'], 'Shape is not reported as free eligible')
     require(snapshot['ubuntu_image_id'] and snapshot['image_a1_compatible'], 'An Oracle-provided Ubuntu ARM image is required')
 
+NETWORK_TYPES={'vcn','default-route-table','default-security-list-unused','default-dhcp-options','internet-gateway','route-table','security-list','public-subnet'}
+
+def enforce_resume(state,snapshot):
+    require(state.get('region')==REGION and state.get('shape')==SHAPE, 'Saved deployment is not the approved free design')
+    require((state.get('ocpus'),state.get('ram_gb'),state.get('boot_gb'))==(2,12,50) and state.get('account_upgraded') is False, 'Saved deployment exceeds or changes the approved allocation')
+    require(state.get('tenancy_sha256')==snapshot['tenancy_sha256'] and state.get('compartment_id')==snapshot['compartment_id'], 'Saved network belongs to another tenancy/compartment')
+    require(state.get('deployment') in ['NETWORK_READY_VM_PENDING','BLOCKED_NO_A1_HOST_CAPACITY'], 'Launch outcome is not safely retryable; inspect existing state first')
+    resources=state.get('resources',[])
+    require(len(resources)==len(NETWORK_TYPES) and {r['type'] for r in resources}==NETWORK_TYPES, 'Retry requires exactly the saved network, with no VM, VNIC or volume')
+    require(all(isinstance(r.get('id'),str) and r['id'] for r in resources) and len({r['id'] for r in resources})==len(resources), 'Invalid or duplicated saved resource identifiers')
+
+def capacity_report(oci,cfg,snapshot,core):
+    requests=[oci.core.models.CreateCapacityReportShapeAvailabilityDetails(instance_shape=SHAPE,
+        instance_shape_config=oci.core.models.CapacityReportInstanceShapeConfig(ocpus=cpu,memory_in_gbs=ram)) for cpu,ram in [(2,12),(1,6)]]
+    report=core.create_compute_capacity_report(oci.core.models.CreateComputeCapacityReportDetails(compartment_id=cfg['tenancy'],
+        availability_domain=snapshot['availability_domain'],shape_availabilities=requests),retry_strategy=oci.retry.NoneRetryStrategy()).data
+    save('capacity-report.json',oci.util.to_dict(report))
+    for item in report.shape_availabilities:
+        print(f'A1 capacity: {item.instance_shape_config.ocpus:g} OCPU / {item.instance_shape_config.memory_in_gbs:g} GB: {item.availability_status}')
+    return any(item.instance_shape==SHAPE and item.instance_shape_config.ocpus==2 and item.instance_shape_config.memory_in_gbs==12
+        and item.availability_status=='AVAILABLE' for item in report.shape_availabilities)
+
 def clients(args):
     try:import oci
     except ImportError:raise SystemExit('Install deploy/oracle/requirements-oci.txt in a private virtual environment.')
@@ -87,7 +109,7 @@ def inspect(args):
     a1=[x for x in allocations if x.shape==SHAPE]
     if args.reuse_instance:
         require(any(x.id==args.reuse_instance for x in a1),'The selected existing instance is not an active A1 allocation in the inspected tenancy')
-    def available(name):return limits.get_resource_availability('compute',name,tenancy).data.available
+    def available(name):return limits.get_resource_availability('compute',name,tenancy,availability_domain=domains[0].name).data.available
     result={'verified_at':now().isoformat(),'home_region':home,'compartment_id':target,'availability_domain':domains[0].name,
         'existing_a1_ocpus':sum(x.shape_config.ocpus for x in a1),'existing_a1_ram_gb':sum(x.shape_config.memory_in_gbs for x in a1),
         'existing_storage_gb':sum(x.size_in_gbs for x in volumes),'quota_core_available':available('standard-a1-core-count'),
@@ -104,7 +126,8 @@ def inspect(args):
 def provision(args):
     require(args.console_evidence and args.ssh_public_key and args.ssh_cidr, 'Provide Console evidence, an SSH public key and the approved source CIDR')
     state_path=STATE/'provisioned.json'
-    require(not state_path.exists(), 'Existing provisioning state found. Inspect it; never create duplicate instances or delete resources automatically.')
+    resume=args.action=='retry-launch'
+    require(state_path.exists() if resume else not state_path.exists(), 'Use retry-launch for a saved network; never create duplicate infrastructure or delete resources automatically.')
     oci,cfg,kwargs,snapshot,network,core=inspect(args)
     check_console_evidence(args.console_evidence,cfg['tenancy'])
     if args.reuse_instance:
@@ -115,30 +138,58 @@ def provision(args):
     public_key=pathlib.Path(args.ssh_public_key).expanduser().read_text().strip()
     require(public_key.startswith(('ssh-ed25519 ','ssh-rsa ')) and '\n' not in public_key, 'Provide a single valid SSH public key')
     compartment=snapshot['compartment_id']
-    state={'verified_at':now().isoformat(),'region':REGION,'shape':SHAPE,'ocpus':2,'ram_gb':12,'boot_gb':50,
-        'account_upgraded':False,'resources':[],'public_https':'PENDING_DNS_AND_CERTIFICATE','deployment':'VM_ONLY_NOT_YET_APP_VALIDATED'}
+    if resume:
+        state=json.loads(state_path.read_text(encoding='utf-8'))
+        enforce_resume(state,snapshot)
+        require(state.get('ssh_source_cidr')==str(source), 'The approved SSH source changed; review network rules before retrying')
+    else:
+        state={'verified_at':now().isoformat(),'region':REGION,'shape':SHAPE,'ocpus':2,'ram_gb':12,'boot_gb':50,
+            'tenancy_sha256':snapshot['tenancy_sha256'],'compartment_id':compartment,'ssh_source_cidr':str(source),
+            'account_upgraded':False,'resources':[],'public_https':'PENDING_DNS_AND_CERTIFICATE','deployment':'NETWORK_READY_VM_PENDING'}
+    if not capacity_report(oci,cfg,snapshot,core):
+        if resume:
+            state['deployment']='BLOCKED_NO_A1_HOST_CAPACITY';save('provisioned.json',state)
+        raise ValueError('No confirmed 2-OCPU/12-GB A1 host capacity in Hyderabad. No launch attempted; saved network retained. Retry later, without paid fallback.')
     def record(kind,value):
         state['resources'].append({'type':kind,'id':value.id})
         save('provisioned.json',state)
         print('Created',kind)
         return value
     retry=oci.retry.NoneRetryStrategy()
-    vcn=record('vcn',network.create_vcn(oci.core.models.CreateVcnDetails(compartment_id=compartment,display_name='supplyprint-free-vcn',cidr_block='10.71.0.0/16',dns_label='supplyprint'),retry_strategy=retry,opc_retry_token=str(uuid.uuid4())).data)
-    for kind,identifier in [('default-route-table',vcn.default_route_table_id),('default-security-list-unused',vcn.default_security_list_id),('default-dhcp-options',vcn.default_dhcp_options_id)]:
-        state['resources'].append({'type':kind,'id':identifier})
-    gateway=record('internet-gateway',network.create_internet_gateway(oci.core.models.CreateInternetGatewayDetails(compartment_id=compartment,vcn_id=vcn.id,is_enabled=True,display_name='supplyprint-free-igw'),retry_strategy=retry).data)
-    routes=record('route-table',network.create_route_table(oci.core.models.CreateRouteTableDetails(compartment_id=compartment,vcn_id=vcn.id,display_name='supplyprint-public-routes',route_rules=[oci.core.models.RouteRule(network_entity_id=gateway.id,destination='0.0.0.0/0',destination_type='CIDR_BLOCK')]),retry_strategy=retry).data)
-    ingress=[]
-    for port,cidr in [(22,str(source)),(80,'0.0.0.0/0'),(443,'0.0.0.0/0')]:
-        ingress.append(oci.core.models.IngressSecurityRule(protocol='6',source=cidr,is_stateless=False,tcp_options=oci.core.models.TcpOptions(destination_port_range=oci.core.models.PortRange(min=port,max=port))))
-    ingress.append(oci.core.models.IngressSecurityRule(protocol='1',source='0.0.0.0/0',is_stateless=False,icmp_options=oci.core.models.IcmpOptions(type=3,code=4)))
-    # Egress is not a paid gateway. Do not generate synthetic traffic to keep a VM alive.
-    rules=record('security-list',network.create_security_list(oci.core.models.CreateSecurityListDetails(compartment_id=compartment,vcn_id=vcn.id,display_name='supplyprint-22-approved-80-443',ingress_security_rules=ingress,egress_security_rules=[oci.core.models.EgressSecurityRule(protocol='all',destination='0.0.0.0/0',is_stateless=False)]),retry_strategy=retry).data)
-    subnet=record('public-subnet',network.create_subnet(oci.core.models.CreateSubnetDetails(compartment_id=compartment,vcn_id=vcn.id,cidr_block='10.71.1.0/24',display_name='supplyprint-free-public',dns_label='public',route_table_id=routes.id,security_list_ids=[rules.id],prohibit_public_ip_on_vnic=False),retry_strategy=retry).data)
-    instance=record('instance',core.launch_instance(oci.core.models.LaunchInstanceDetails(compartment_id=compartment,availability_domain=snapshot['availability_domain'],display_name='supplyprint-always-free',shape=SHAPE,
-        shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(ocpus=2,memory_in_gbs=12),
-        source_details=oci.core.models.InstanceSourceViaImageDetails(image_id=snapshot['ubuntu_image_id'],boot_volume_size_in_gbs=50,boot_volume_vpus_per_gb=0),
-        create_vnic_details=oci.core.models.CreateVnicDetails(subnet_id=subnet.id,assign_public_ip=True),metadata={'ssh_authorized_keys':public_key}),retry_strategy=retry,opc_retry_token=str(uuid.uuid4())).data)
+    if resume:
+        identifiers={r['type']:r['id'] for r in state['resources']}
+        subnet=network.get_subnet(identifiers['public-subnet']).data
+        require(subnet.compartment_id==compartment and subnet.vcn_id==identifiers['vcn'] and subnet.lifecycle_state=='AVAILABLE', 'Saved subnet does not match the inspected deployment')
+        require(subnet.security_list_ids==[identifiers['security-list']] and subnet.route_table_id==identifiers['route-table'], 'Saved subnet security/routing changed; inspect before retry')
+        rules=network.get_security_list(identifiers['security-list']).data
+        require(len(rules.ingress_security_rules)==4 and all(r.protocol in ['6','1'] and r.is_stateless is False for r in rules.ingress_security_rules), 'Unexpected additional/stateless ingress')
+        require(all(r.source=='0.0.0.0/0' and r.icmp_options and r.icmp_options.type==3 and r.icmp_options.code==4 for r in rules.ingress_security_rules if r.protocol=='1'), 'Unexpected ICMP ingress')
+        tcp=[r for r in rules.ingress_security_rules if r.protocol=='6']
+        expected={(22,str(source)),(80,'0.0.0.0/0'),(443,'0.0.0.0/0')}
+        require(len(tcp)==3 and all(r.tcp_options and r.tcp_options.destination_port_range for r in tcp), 'Unexpected network ingress')
+        require({(r.tcp_options.destination_port_range.min,r.source) for r in tcp}==expected and all(r.tcp_options.destination_port_range.min==r.tcp_options.destination_port_range.max for r in tcp), 'Saved SSH/public port rules changed')
+    else:
+        vcn=record('vcn',network.create_vcn(oci.core.models.CreateVcnDetails(compartment_id=compartment,display_name='supplyprint-free-vcn',cidr_block='10.71.0.0/16',dns_label='supplyprint'),retry_strategy=retry,opc_retry_token=str(uuid.uuid4())).data)
+        for kind,identifier in [('default-route-table',vcn.default_route_table_id),('default-security-list-unused',vcn.default_security_list_id),('default-dhcp-options',vcn.default_dhcp_options_id)]:
+            state['resources'].append({'type':kind,'id':identifier})
+        gateway=record('internet-gateway',network.create_internet_gateway(oci.core.models.CreateInternetGatewayDetails(compartment_id=compartment,vcn_id=vcn.id,is_enabled=True,display_name='supplyprint-free-igw'),retry_strategy=retry).data)
+        routes=record('route-table',network.create_route_table(oci.core.models.CreateRouteTableDetails(compartment_id=compartment,vcn_id=vcn.id,display_name='supplyprint-public-routes',route_rules=[oci.core.models.RouteRule(network_entity_id=gateway.id,destination='0.0.0.0/0',destination_type='CIDR_BLOCK')]),retry_strategy=retry).data)
+        ingress=[]
+        for port,cidr in [(22,str(source)),(80,'0.0.0.0/0'),(443,'0.0.0.0/0')]:
+            ingress.append(oci.core.models.IngressSecurityRule(protocol='6',source=cidr,is_stateless=False,tcp_options=oci.core.models.TcpOptions(destination_port_range=oci.core.models.PortRange(min=port,max=port))))
+        ingress.append(oci.core.models.IngressSecurityRule(protocol='1',source='0.0.0.0/0',is_stateless=False,icmp_options=oci.core.models.IcmpOptions(type=3,code=4)))
+        rules=record('security-list',network.create_security_list(oci.core.models.CreateSecurityListDetails(compartment_id=compartment,vcn_id=vcn.id,display_name='supplyprint-22-approved-80-443',ingress_security_rules=ingress,egress_security_rules=[oci.core.models.EgressSecurityRule(protocol='all',destination='0.0.0.0/0',is_stateless=False)]),retry_strategy=retry).data)
+        subnet=record('public-subnet',network.create_subnet(oci.core.models.CreateSubnetDetails(compartment_id=compartment,vcn_id=vcn.id,cidr_block='10.71.1.0/24',display_name='supplyprint-free-public',dns_label='public',route_table_id=routes.id,security_list_ids=[rules.id],prohibit_public_ip_on_vnic=False),retry_strategy=retry).data)
+    state['deployment']='VM_LAUNCH_PENDING';state['launch_retry_token']=str(uuid.uuid4());save('provisioned.json',state)
+    try:
+        instance=record('instance',core.launch_instance(oci.core.models.LaunchInstanceDetails(compartment_id=compartment,availability_domain=snapshot['availability_domain'],display_name='supplyprint-always-free',shape=SHAPE,
+            shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(ocpus=2,memory_in_gbs=12),
+            source_details=oci.core.models.InstanceSourceViaImageDetails(image_id=snapshot['ubuntu_image_id'],boot_volume_size_in_gbs=50,boot_volume_vpus_per_gb=0),
+            create_vnic_details=oci.core.models.CreateVnicDetails(subnet_id=subnet.id,assign_public_ip=True),metadata={'ssh_authorized_keys':public_key}),retry_strategy=retry,opc_retry_token=state['launch_retry_token']).data)
+    except oci.exceptions.ServiceError as error:
+        state['deployment']='BLOCKED_NO_A1_HOST_CAPACITY' if 'out of host capacity' in error.message.lower() else 'VM_LAUNCH_FAILED_REVIEW_REQUIRED'
+        state['last_launch_error']={'at':now().isoformat(),'status':error.status,'code':error.code,'message':error.message}
+        save('provisioned.json',state);raise
     live=oci.wait_until(core,core.get_instance(instance.id),'lifecycle_state','RUNNING',max_wait_seconds=600).data
     attachments=core.list_vnic_attachments(compartment,instance_id=live.id).data
     primary=network.get_vnic(attachments[0].vnic_id).data
@@ -151,17 +202,22 @@ def provision(args):
             state['resources'].append({'type':'ephemeral-public-ip','id':public.id})
     state['public_ip']=primary.public_ip
     state['instance_state']=live.lifecycle_state
+    state['deployment']='VM_ONLY_NOT_YET_APP_VALIDATED'
     state['ssh_source_cidr']=str(source)
     save('provisioned.json',state)
     print('VM is running. Install and validate the application over SSH; HTTPS is not yet claimed.')
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action',choices=['inspect','provision'])
+    p.add_argument('action',choices=['inspect','capacity','provision','retry-launch'])
     p.add_argument('--config',default='~/.oci/config');p.add_argument('--profile',default='DEFAULT')
     p.add_argument('--compartment');p.add_argument('--console-evidence');p.add_argument('--ssh-public-key');p.add_argument('--ssh-cidr')
     p.add_argument('--reuse-instance',help='Inspect and reuse an existing eligible A1 instance; never allocate a duplicate')
     args=p.parse_args()
-    try: provision(args) if args.action=='provision' else inspect(args)
+    try:
+        if args.action in ['provision','retry-launch']:provision(args)
+        else:
+            result=inspect(args)
+            if args.action=='capacity':capacity_report(result[0],result[1],result[3],result[5])
     except (AssertionError,KeyError,ValueError) as error:raise SystemExit(str(error))
 if __name__=='__main__':main()

@@ -2,7 +2,9 @@
 
 ## Actual status
 
-**OCI deployment: not performed.** No usable OCI credentials or connected console are available. Account type, home-region usage, capacity, actual bill, public DNS/certificate, OCI/Ubuntu firewall behavior and VM reboot recovery remain unverified. No OCI resource or paid subscription was created. A ₹0/month running deployment is not claimed.
+**OCI deployment: blocked by Oracle host capacity, checked 17 November 2026 IST.** Authentication works after correcting Windows' hidden `config.txt` extension and restricting configuration/key access. The owner confirmed Free Tier, not PAYG; authenticated OCI APIs confirm Hyderabad is the home region, A1 billing is `LIMITED_FREE`, and the official Ubuntu ARM64 image is compatible. Tenancy inventory found no existing compute, boot or block allocations. One availability domain is available. The 2-OCPU/12-GB launch returned `InternalError: Out of host capacity`; Oracle's capacity report also returned `OUT_OF_HOST_CAPACITY` for both 2/12 and 1/6 A1 configurations.
+
+Free networking resources were created and retained for retry. **No VM, boot disk, public IP, paid resource or account upgrade was created.** There is no running OCI API; public TLS, host firewall, reboot recovery and cloud inference remain unverified. A ₹0/month running deployment is not claimed. Account type is owner-confirmed; no direct Console shape-label observation or immediate billing-invoice verification is claimed.
 
 Work is in isolated branch `deploy/oracle-always-free`, based on main `a1ff4ef8`. The other working copies, deployed Lotline frontend and existing production data were not modified.
 
@@ -17,7 +19,10 @@ Work is in isolated branch `deploy/oracle-always-free`, based on main `a1ff4ef8`
 | Model artifact | Exact ONNX Runtime **1.17.3** JAR inspected: both Linux AArch64 native libraries exist. The committed model loads and returns 128 finite, normalized dimensions. No model/preprocessing replacement or hash fallback was used in production tests. |
 | Production images | ARM64 application image built, with Java **17.0.21**, UID **10001**, bounded heap and C1 compilation for the small server. PostgreSQL **16.14 / pgvector 0.8.2** and Caddy **2.11.9** have pinned multi-architecture manifests. |
 | Configuration | Production Compose validation, ARM64 Caddy configuration validation, shell syntax and Python compilation passed. |
-| Cost guard | **6 tests pass**, also under `python -O`; guards reject pre-existing CPU/RAM/storage over-allocation, paid/wrong-region shapes, missing inventory/quota and insufficient quota. Reuse is counted without allocating a duplicate VM. They do not use disableable Python assertions. |
+| Cost guard | **9 tests pass**, also under `python -O`; guards reject pre-existing CPU/RAM/storage over-allocation, paid/wrong-region shapes, missing inventory/quota and insufficient quota. Saved-network retries reject changed tenancy/region/allocation, an existing VM and uncertain launch outcomes. They do not use disableable Python assertions. |
+| Authenticated OCI preflight | Passed after supplying the availability domain required by the A1 quota API. A large service quota is not a free allowance: the independent 2-OCPU/12-GB/200-GB ceilings are still enforced. |
+| OCI network rules | Read back from OCI: the public subnet uses only the custom security list; TCP 22 is restricted to this workstation's /32, 80/443 are public, and only fragmentation-needed ICMP is additionally allowed. The saved internet-gateway route matches. No database/application port is opened. Private report: `reports/oracle/cloud-network-verification.json`. |
+| Saved-network retry | Executed against the authenticated tenancy. Repeated preflight passed, capacity remained `OUT_OF_HOST_CAPACITY`, no second VM launch was attempted, and every saved resource ID remained unchanged. Private evidence: `reports/oracle/cloud-retry.log`. The VM-success path remains unverified until host capacity returns. |
 | Live local acceptance | **Passed** on Docker Desktop with ARM64 emulation: actual API/database `uname -m=aarch64`, trusted local HTTPS, real 128-dimensional ONNX output (norm 1.0000000138165843), two-tenant isolation, secure-cookie refresh, UID 10001/read-only root, private PostgreSQL, accepted record surviving API/database restart, isolated dump restoration, and a deliberately failed image update restoring the previous image and record. Private evidence: `reports/oracle/local-validation.json`. |
 | Native ARM64 CI | **Passed** on native `aarch64`, Ubuntu 24.04, Temurin 17.0.21: [run 43941397967](https://github.com/dineshsuthar123/supplychain-auth/actions/runs/43941397967), code commit `ed9ba968`. All 16 backend tests, six cost guards (normal and optimized Python), image build and the complete HTTPS/image/persistence/restore/failed-release rollback exercise passed. Actual mapped libraries are `/opt/onnx/libonnxruntime.so` and `/opt/onnx/libonnxruntime4j_jni.so`; `/tmp` remains noexec. This is native ARM hardware proof, not an OCI VM deployment. |
 
@@ -27,14 +32,14 @@ The first native run exposed JNI extraction failing on the container's noexec `/
 
 | Item | Planned | Actually created / verified in OCI |
 |---|---|---|
-| Region / OS | Hyderabad `ap-hyderabad-1` home region / Ubuntu 24.04 ARM64 | Unverified |
+| Region / OS | Hyderabad `ap-hyderabad-1` home region / Ubuntu 24.04 ARM64 | Home region verified by API; compatible Ubuntu image selected; no guest OS running |
 | Compute | One `VM.Standard.A1.Flex`, 2 OCPUs, 12 GB RAM | None; 0 OCPUs / 0 GB allocated by this work |
-| Storage | 50 GB boot; all tenancy boot/block volumes at most 200 GB | None; 0 GB allocated by this work; existing usage unknown |
-| Networking | VCN, internet gateway, routes, restricted security list, subnet, VNIC, ephemeral public IPv4 | None |
+| Storage | 50 GB boot; all tenancy boot/block volumes at most 200 GB | None; 0 GB allocated by this work; existing boot/block usage was 0 GB |
+| Networking | VCN, internet gateway, routes, restricted security list, subnet, VNIC, ephemeral public IPv4 | One VCN, one internet gateway, one custom route table, one custom security list, one public subnet; the VCN also generated its default route table, unused default security list and DHCP options. No VNIC/public IP. |
 | Public API / TLS | User-controlled subdomain, automatic Caddy certificate; SSH tunnel first if absent | No public hostname or certificate configured |
-| Account / billing | Free Tier, no PAYG upgrade, no trial-dependent resources | No upgrade or paid resource created; account eligibility and existing bill remain unverified |
+| Account / billing | Free Tier, no PAYG upgrade, no trial-dependent resources | Owner confirmed Free Tier. No upgrade, paid resource or credit-dependent compute was created. Actual cost-report ingestion/invoice is not independently verified. |
 
-There is no paid fallback, managed database, load balancer, NAT gateway, object-storage bucket or blockchain funding. No resource created here can consume trial credits because no OCI resource was created. This does not certify the cost of any pre-existing account resources. Operations commands, backup/recovery procedures and the capacity plan for five additional backends are in [README.md](README.md).
+The retained VCN/network configuration fits the free VCN allowance. With no VM, volume or public IP allocated, no compute/storage charge was introduced. There is no paid fallback, managed database, load balancer, NAT gateway, object-storage bucket or blockchain funding. No trial credits are relied upon. This does not certify an unobserved account invoice. Resource IDs, account metadata, keys and IP addresses stay in ignored private state. Operations, safe capacity retry, backup/recovery and the five-backend plan are in [README.md](README.md).
 
 ## Audit findings and boundaries
 
@@ -52,4 +57,6 @@ The packaged model is byte-for-byte identical to the committed 4,439,288-byte fi
 
 ## Required cloud acceptance
 
-After access is configured: inventory/Console free eligibility, provision or inspect the approved VM, verify both SSH identities, apply and inspect OCI and host firewalls, deploy the tested immutable image, validate actual HTTPS auth/image/tenant behavior, restart and safely reboot that VM, restore its backup in isolation, then check resource usage and billing. Keep the old data/volumes until an explicitly reviewed cutover; do not restore unrelated Lotline data into this SupplyPrint schema.
+When A1 capacity becomes available, use `retry-launch` with the saved network, fresh factual eligibility evidence and the original approved SSH source/key. It repeats inventory and capacity checks without creating duplicate networking. Then verify both SSH identities, apply/inspect the host firewall, deploy the CI-validated immutable image, test actual HTTPS auth/image/tenant behavior, restart and safely reboot the VM, restore its backup in isolation, and inspect resource usage/billing. Keep old data/volumes until an explicitly reviewed cutover; do not restore unrelated Lotline data into this SupplyPrint schema. No background capacity-polling or retry automation was installed.
+
+The verified local ARM64 Docker stack is the available zero-hosting-cost demo while waiting. The Always Free E2 micro shape has only 1 GB RAM and does not meet this deployment's validated single-VM budget; it was not silently substituted. There is no claim that a different region or paid shape would satisfy the stated constraints.

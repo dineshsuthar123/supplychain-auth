@@ -22,4 +22,17 @@ class CostGuard(unittest.TestCase):
         with self.assertRaises(ValueError):infra.enforce(self.baseline()|{'quota_core_available':1})
     def test_existing_instance_can_be_reused_without_adding_allocation(self):
         infra.enforce(self.baseline()|dict(reuse_existing=True,existing_a1_ocpus=2,existing_a1_ram_gb=12,existing_storage_gb=200,quota_core_available=0,quota_ram_available=0))
+    def resume_state(self):
+        return dict(region='ap-hyderabad-1',shape='VM.Standard.A1.Flex',ocpus=2,ram_gb=12,boot_gb=50,account_upgraded=False,
+            tenancy_sha256='owner',compartment_id='approved',deployment='BLOCKED_NO_A1_HOST_CAPACITY',
+            resources=[dict(type=kind,id='saved-'+kind) for kind in infra.NETWORK_TYPES])
+    def resume_snapshot(self):return self.baseline()|dict(tenancy_sha256='owner',compartment_id='approved')
+    def test_failed_capacity_launch_reuses_only_complete_saved_network(self):
+        infra.enforce_resume(self.resume_state(),self.resume_snapshot())
+    def test_resume_rejects_vm_or_uncertain_launch_outcome(self):
+        for patch in [dict(deployment='VM_LAUNCH_PENDING'),dict(resources=self.resume_state()['resources']+[dict(type='instance',id='vm')])]:
+            with self.subTest(patch=patch),self.assertRaises(ValueError):infra.enforce_resume(self.resume_state()|patch,self.resume_snapshot())
+    def test_resume_rejects_changed_owner_region_or_allocation(self):
+        for patch in [dict(tenancy_sha256='other'),dict(compartment_id='other'),dict(region='ap-mumbai-1'),dict(ocpus=4),dict(account_upgraded=True)]:
+            with self.subTest(patch=patch),self.assertRaises(ValueError):infra.enforce_resume(self.resume_state()|patch,self.resume_snapshot())
 if __name__=='__main__':unittest.main()
