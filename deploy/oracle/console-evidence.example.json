@@ -1,0 +1,8 @@
+{
+  "tenancy_sha256": "COPY_FROM_PRIVATE_PREFLIGHT_REPORT",
+  "verified_at": "REPLACE_WITH_ACTUAL_UTC_TIME_WITH_TIMEZONE",
+  "account_type": "REPLACE_AFTER_CHECKING_OCI_BILLING_CONSOLE",
+  "home_region": "ap-hyderabad-1",
+  "shape_always_free_eligible": false,
+  "note": "Only a verified Free Tier account, never Pay As You Go or trial credits. Do not fabricate this evidence."
+}

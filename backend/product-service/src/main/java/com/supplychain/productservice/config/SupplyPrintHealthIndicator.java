@@ -2,8 +2,8 @@ package com.supplychain.productservice.config;
 
 import com.supplychain.productservice.ai.EmbeddingService;
 import com.supplychain.productservice.blockchain.BlockchainService;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 

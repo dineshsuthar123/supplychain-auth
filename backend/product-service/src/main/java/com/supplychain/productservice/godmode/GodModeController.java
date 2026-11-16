@@ -1,6 +1,7 @@
 package com.supplychain.productservice.godmode;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.LongAdder;
  * - Success rate: 99.999%
  */
 @RestController
+@Profile("!oracle")
 @RequestMapping("/api/godmode")
 public class GodModeController {
     

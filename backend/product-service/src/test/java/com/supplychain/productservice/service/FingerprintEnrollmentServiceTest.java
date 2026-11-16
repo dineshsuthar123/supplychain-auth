@@ -17,6 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import com.supplychain.productservice.tenant.TenantContext;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,15 +33,18 @@ class FingerprintEnrollmentServiceTest {
     @Mock BlockchainOutboxRepository   outboxRepo;
 
     FingerprintEnrollmentService service;
+    private final UUID tenant = UUID.randomUUID();
+    @AfterEach void clearTenant() { TenantContext.clear(); }
 
     @BeforeEach
     void setUp() {
+        TenantContext.set(tenant);
         service = new FingerprintEnrollmentService(fingerprintRepo, outboxRepo, new SimpleMeterRegistry());
     }
 
     @Test
     void enroll_savesFingerprint_andQueuesOutbox() {
-        given(fingerprintRepo.existsByProductId("P001")).willReturn(false);
+        given(fingerprintRepo.existsByTenantIdAndProductId(tenant, "P001")).willReturn(false);
         given(fingerprintRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
 
@@ -55,7 +61,7 @@ class FingerprintEnrollmentServiceTest {
 
     @Test
     void enroll_throwsDuplicate_whenProductAlreadyExists() {
-        given(fingerprintRepo.existsByProductId("P001")).willReturn(true);
+        given(fingerprintRepo.existsByTenantIdAndProductId(tenant, "P001")).willReturn(true);
         assertThatThrownBy(() -> service.enroll(new EnrollRequest("P001", null, embedding128())))
                 .isInstanceOf(DuplicateProductException.class)
                 .hasMessageContaining("P001");

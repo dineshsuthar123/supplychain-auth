@@ -1,0 +1,7 @@
+[Unit]
+Description=Private SupplyPrint resource and readiness checks
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/supplyprint-ops monitor
+NoNewPrivileges=true

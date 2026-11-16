@@ -1,0 +1,11 @@
+[Unit]
+Description=SupplyPrint host and Docker ingress firewall
+After=network-online.target docker.service
+Requires=docker.service
+PartOf=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/supplyprint-firewall
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

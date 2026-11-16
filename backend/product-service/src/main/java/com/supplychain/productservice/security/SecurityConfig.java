@@ -29,7 +29,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/health", "/actuator/health", "/error").permitAll()
+                        .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/health", "/actuator/health", "/actuator/health/readiness", "/actuator/health/liveness", "/error").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/enroll", "/api/verify").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/enroll/**").hasAnyRole("MANUFACTURER", "ADMIN")

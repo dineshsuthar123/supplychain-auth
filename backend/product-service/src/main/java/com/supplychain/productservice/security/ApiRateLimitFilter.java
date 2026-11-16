@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ApiRateLimitFilter extends OncePerRequestFilter {
     private final Cache<String, AtomicInteger> requests = Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).maximumSize(100_000).build();
     @Value("${supplyprint.rate-limit.requests-per-minute:120}") private int limit;
-    @Override protected boolean shouldNotFilter(HttpServletRequest request) { return !request.getRequestURI().startsWith("/api/"); }
+    @Override protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !(request.getRequestURI().startsWith("/api/") || request.getRequestURI().startsWith("/auth/"));
+    }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String key = request.getRemoteAddr() + ':' + request.getRequestURI();
         int used = requests.get(key, unused -> new AtomicInteger()).incrementAndGet();

@@ -11,8 +11,7 @@ import java.util.UUID;
  * Stores the physical-fingerprint embedding and its on-chain anchoring metadata.
  *
  * The {@code embedding} column is a pgvector {@code vector(128)} column.
- * We store it as a float array and rely on a custom UserType (PgVectorUserType)
- * to serialise/deserialise via the pgvector JDBC extension.
+ * Hibernate's native VECTOR mapping reads and writes the float array.
  */
 @Entity
 @Table(name = "product_fingerprints")
@@ -30,11 +29,10 @@ public class ProductFingerprint {
 
     /**
      * 128-dimensional float vector stored in a pgvector column.
-     * Mapped as ARRAY of floats; the JPA repository uses native SQL for
-     * vector-distance queries so this field is only used on read/write.
+     * The JPA repository uses native SQL for vector-distance queries.
      */
     @Column(name = "embedding", columnDefinition = "vector(128)")
-    @JdbcTypeCode(SqlTypes.ARRAY)
+    @JdbcTypeCode(SqlTypes.VECTOR)
     private float[] embedding;
 
     @Column(name = "feature_hash", nullable = false, length = 64)

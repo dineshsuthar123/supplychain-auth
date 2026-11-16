@@ -168,7 +168,7 @@ public class AuthService {
             throw new RuntimeException("Account is disabled");
         }
         if (user.getRefreshTokenHash() == null || user.getRefreshTokenExpiresAt() == null ||
-                user.getRefreshTokenExpiresAt().isBefore(Instant.now()) || !passwordEncoder.matches(refreshToken, user.getRefreshTokenHash())) {
+                user.getRefreshTokenExpiresAt().isBefore(Instant.now()) || !passwordEncoder.matches(refreshDigest(refreshToken), user.getRefreshTokenHash())) {
             throw new RuntimeException("Refresh token has been rotated or expired");
         }
 
@@ -196,12 +196,19 @@ public class AuthService {
         }
     }
 
+    private static String refreshDigest(String token) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException error) { throw new IllegalStateException(error); }
+    }
+
     private AuthResponse generateAuthResponse(User user) {
         String accessToken = jwtService.generateAccessToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole());
         String refreshToken = jwtService.generateRefreshToken(user.getId(), user.getTenantId());
 
         // Store hashed refresh token
-        user.setRefreshTokenHash(passwordEncoder.encode(refreshToken));
+        user.setRefreshTokenHash(passwordEncoder.encode(refreshDigest(refreshToken)));
         user.setRefreshTokenExpiresAt(Instant.now().plusMillis(jwtService.getRefreshTokenExpirationMs()));
         userRepository.save(user);
 

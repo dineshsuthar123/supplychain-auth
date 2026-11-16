@@ -1,0 +1,57 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+    skip_install_trust
+    servers {
+        max_header_size 32KB
+        timeouts {
+            read_body 30s
+        }
+    }
+}
+http://127.0.0.1:8081 {
+    bind 127.0.0.1
+    respond /healthz "ready" 200
+}
+{$API_HOST} {
+    encode zstd gzip
+    request_body {
+        max_size 11MB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+        Cache-Control "private, no-store"
+        -Server
+    }
+    @public path /auth/register /auth/login /auth/refresh /auth/logout /auth/me /auth/health /api/enroll/image /api/verify/image /api/verify/*/log /api/dashboard /actuator/health
+    handle @public {
+        reverse_proxy supplyprint-api:8080 {
+            # Default Caddy policy overwrites untrusted incoming forwarded headers.
+            header_up -Forwarded
+            transport http {
+                response_header_timeout 60s
+            }
+        }
+    }
+    handle {
+        respond 404
+    }
+    log {
+        output file /data/access.log {
+            roll_size 10MiB
+            roll_keep 3
+            roll_keep_for 168h
+        }
+        format filter {
+            wrap json
+            fields {
+                request>headers>Authorization delete
+                request>headers>Cookie delete
+                resp_headers>Set-Cookie delete
+            }
+        }
+    }
+}

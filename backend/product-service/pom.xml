@@ -11,7 +11,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
     <properties>
@@ -19,15 +19,16 @@
         <web3j.version>4.10.3</web3j.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <onnxruntime.version>1.17.3</onnxruntime.version>
-        <flyway.version>10.10.0</flyway.version>
-        <testcontainers.version>1.19.7</testcontainers.version>
-        <micrometer.version>1.12.5</micrometer.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
     <dependencies>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-flyway</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-jackson2</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc-test</artifactId><scope>test</scope></dependency>
         <!-- ── Spring Boot Core ── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -47,7 +48,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
         </dependency>
 
         <!-- ── PostgreSQL + pgvector ── -->
@@ -57,6 +58,11 @@
             <scope>runtime</scope>
         </dependency>
         <!-- pgvector Java type support -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-vector</artifactId>
+            <version>${hibernate.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.pgvector</groupId>
             <artifactId>pgvector</artifactId>
@@ -124,7 +130,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.5.0</version>
+            <version>3.2.0</version>
         </dependency>
 
         <!-- ── Lombok (annotation processor for legacy files) ── -->

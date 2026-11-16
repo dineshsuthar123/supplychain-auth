@@ -1,0 +1,5 @@
+deploy/oracle/*.sh text eol=lf
+deploy/oracle/Dockerfile text eol=lf
+deploy/oracle/Caddyfile text eol=lf
+*.png binary
+*.onnx binary

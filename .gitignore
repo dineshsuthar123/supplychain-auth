@@ -58,6 +58,12 @@ blockchain/artifacts/**
 .vercel/
 
 # Cloud CLI credentials
+/.oci/
+/deploy/oracle/state/
+/deploy/oracle/backups/
+*.tfstate*
+*.tfplan
+!deploy/oracle/.env.example
 
 # Kubernetes secrets
 *-secrets.yaml

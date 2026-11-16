@@ -13,6 +13,17 @@ public final class ImageCaptureValidator {
         boolean jpeg = image.length >= 3 && (image[0] & 0xff) == 0xff && (image[1] & 0xff) == 0xd8 && (image[2] & 0xff) == 0xff;
         boolean png = image.length >= 8 && image[0] == (byte)137 && image[1] == 80 && image[2] == 78 && image[3] == 71 && image[4] == 13 && image[5] == 10 && image[6] == 26 && image[7] == 10;
         if (!jpeg && !png) throw new IllegalArgumentException("Only binary JPEG and PNG captures are accepted");
+        try (var input = ImageIO.createImageInputStream(new ByteArrayInputStream(image))) {
+            var readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) throw new IllegalArgumentException("Unsupported image decoder");
+            var reader = readers.next();
+            try {
+                reader.setInput(input);
+                int width = reader.getWidth(0), height = reader.getHeight(0);
+                if (width < 16 || height < 16 || (long) width * height > MAX_PIXELS)
+                    throw new IllegalArgumentException("Unsupported image dimensions");
+            } finally { reader.dispose(); }
+        } catch (java.io.IOException e) { throw new IllegalArgumentException("Unable to inspect image capture", e); }
         try {
             BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(image));
             if (decoded == null || decoded.getWidth() < 16 || decoded.getHeight() < 16 || (long) decoded.getWidth() * decoded.getHeight() > MAX_PIXELS) throw new IllegalArgumentException("Unsupported image dimensions");

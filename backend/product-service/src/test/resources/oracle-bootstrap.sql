@@ -1,0 +1,10 @@
+CREATE ROLE supplyprint_migration LOGIN PASSWORD 'test-migration-only-very-long-password' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE ROLE supplyprint_app LOGIN PASSWORD 'test-runtime-only-very-long-password' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+ALTER DATABASE supplyprint_test OWNER TO supplyprint_migration;
+ALTER SCHEMA public OWNER TO supplyprint_migration;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO supplyprint_app;
+GRANT CONNECT ON DATABASE supplyprint_test TO supplyprint_app;
+CREATE EXTENSION IF NOT EXISTS vector;
+ALTER DEFAULT PRIVILEGES FOR ROLE supplyprint_migration IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO supplyprint_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE supplyprint_migration IN SCHEMA public GRANT USAGE,SELECT ON SEQUENCES TO supplyprint_app;

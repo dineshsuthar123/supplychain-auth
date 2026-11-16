@@ -1,0 +1,14 @@
+.git
+.env*
+**/.env*
+**/target
+**/node_modules
+frontend
+reports
+datasets
+Images_dataset
+**/*.log
+deploy/oracle/state
+deploy/oracle/backups
+**/*.pem
+**/*.key
