@@ -15,6 +15,9 @@ Authoritative limits and idle-reclamation policy: [Oracle Always Free](https://d
 ## Access and first setup
 
 1. Configure a local OCI SDK/API-key profile at `~/.oci/config`, with its key outside Git. Security-token profiles are also supported. Do not paste keys into chat or command history.
+
+   On this Windows workstation, use Oracle Console **Profile → User settings → API Keys (or Tokens and keys) → Add API Key**. Download the private key into `C:\Users\Naresh Suthar\.oci\`, select Add, and save the generated Configuration File Preview as `C:\Users\Naresh Suthar\.oci\config` (no `.txt` extension). Set `key_file` to the downloaded PEM's actual local path and retain the profile header. Preserve any existing profiles. Follow Oracle's [API-key instructions](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm) and [Windows configuration location](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm). Limit private-key file access to your user and SYSTEM. These are API credentials, distinct from the already generated SSH keys.
+
 2. Install the isolated SDK and inspect the account:
 
    ```sh

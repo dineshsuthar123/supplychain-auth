@@ -19,11 +19,26 @@ Work is in isolated branch `deploy/oracle-always-free`, based on main `a1ff4ef8`
 | Configuration | Production Compose validation, ARM64 Caddy configuration validation, shell syntax and Python compilation passed. |
 | Cost guard | **6 tests pass**, also under `python -O`; guards reject pre-existing CPU/RAM/storage over-allocation, paid/wrong-region shapes, missing inventory/quota and insufficient quota. Reuse is counted without allocating a duplicate VM. They do not use disableable Python assertions. |
 | Live local acceptance | **Passed** on Docker Desktop with ARM64 emulation: actual API/database `uname -m=aarch64`, trusted local HTTPS, real 128-dimensional ONNX output (norm 1.0000000138165843), two-tenant isolation, secure-cookie refresh, UID 10001/read-only root, private PostgreSQL, accepted record surviving API/database restart, isolated dump restoration, and a deliberately failed image update restoring the previous image and record. Private evidence: `reports/oracle/local-validation.json`. |
-| Native ARM64 CI | The first native `ubuntu-24.04-arm` run passed all 16 backend tests, including real inference, but exposed JNI extraction failing on the container's noexec `/tmp`. The Dockerfile now extracts the exact 1.17.3 ARM64 libraries into root-owned `/opt/onnx` at build time and uses ONNX's native-path property. Temporary storage remains noexec; acceptance checks inspect actual mapped library paths. The corrected full-stack run must pass before deployment. |
+| Native ARM64 CI | **Passed** on native `aarch64`, Ubuntu 24.04, Temurin 17.0.21: [run 43941397967](https://github.com/dineshsuthar123/supplychain-auth/actions/runs/43941397967), code commit `ed9ba968`. All 16 backend tests, six cost guards (normal and optimized Python), image build and the complete HTTPS/image/persistence/restore/failed-release rollback exercise passed. Actual mapped libraries are `/opt/onnx/libonnxruntime.so` and `/opt/onnx/libonnxruntime4j_jni.so`; `/tmp` remains noexec. This is native ARM hardware proof, not an OCI VM deployment. |
+
+The first native run exposed JNI extraction failing on the container's noexec `/tmp`; ARM emulation had not caught it. The corrected Dockerfile extracts the exact ONNX 1.17.3 ARM64 libraries into root-owned `/opt/onnx` at build time and uses ONNX's native-path property. No native-library version, model, preprocessing or embedding fallback was substituted.
+
+## Infrastructure and cost inventory
+
+| Item | Planned | Actually created / verified in OCI |
+|---|---|---|
+| Region / OS | Hyderabad `ap-hyderabad-1` home region / Ubuntu 24.04 ARM64 | Unverified |
+| Compute | One `VM.Standard.A1.Flex`, 2 OCPUs, 12 GB RAM | None; 0 OCPUs / 0 GB allocated by this work |
+| Storage | 50 GB boot; all tenancy boot/block volumes at most 200 GB | None; 0 GB allocated by this work; existing usage unknown |
+| Networking | VCN, internet gateway, routes, restricted security list, subnet, VNIC, ephemeral public IPv4 | None |
+| Public API / TLS | User-controlled subdomain, automatic Caddy certificate; SSH tunnel first if absent | No public hostname or certificate configured |
+| Account / billing | Free Tier, no PAYG upgrade, no trial-dependent resources | No upgrade or paid resource created; account eligibility and existing bill remain unverified |
+
+There is no paid fallback, managed database, load balancer, NAT gateway, object-storage bucket or blockchain funding. No resource created here can consume trial credits because no OCI resource was created. This does not certify the cost of any pre-existing account resources. Operations commands, backup/recovery procedures and the capacity plan for five additional backends are in [README.md](README.md).
 
 ## Audit findings and boundaries
 
-The source scan found 12 default-credential occurrences. Gitleaks **8.30.1**, downloaded from its official release and SHA-256 verified, found five historical generic-API-key/Kubernetes-secret matches on main history. The redacted findings are private under `reports/oracle/`. Historical defaults/potential credentials must never be reused; rotate any that were used live. This work does not rewrite repository history or claim to have revoked unknown external credentials. Production secrets are freshly generated and excluded from Git and Docker context. Tracked product-service build output was removed from the index; source and development configuration remain available.
+The source scan found 12 default-credential occurrences. Gitleaks **8.30.1**, downloaded from its official release and SHA-256 verified, found five historical generic-API-key/Kubernetes-secret matches on main history. A redacted scan of the deployment branch's new commits passed with no findings. The redacted findings are private under `reports/oracle/`. Historical defaults/potential credentials must never be reused; rotate any that were used live. This work does not rewrite repository history or claim to have revoked unknown external credentials. Production secrets are freshly generated and excluded from Git and Docker context. Tracked product-service build output was removed from the index; source and development configuration remain available.
 
 The Oracle policy blocks SIWE entirely because its signature verification is incomplete, along with legacy bypass/raw-embedding routes. No wallet private key or blockchain funding is used. JWTs/credentials are tested over HTTPS with an explicitly trusted local test CA; this does not prove a public certificate. The production proxy will use ordinary public certificate validation after actual DNS/port setup.
 
