@@ -1,0 +1,14 @@
+# Disposable local/native-CI review only. Never applied by production ops.sh.
+# Memory, storage, image/model, authentication and network settings are inherited.
+services:
+  api:
+    cpus: 0.65
+    healthcheck:
+      start_period: 300s
+    environment:
+      SUPPLYPRINT_ONNX_INTER_OP_THREADS: "1"
+      SUPPLYPRINT_ONNX_INTRA_OP_THREADS: "1"
+  db:
+    cpus: 0.20
+  proxy:
+    cpus: 0.10

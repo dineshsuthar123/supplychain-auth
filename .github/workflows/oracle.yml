@@ -28,11 +28,15 @@ jobs:
           mvn -B -ntp -f backend/product-service/pom.xml verify
           python3 deploy/oracle/test_cost_guard.py
           python3 -O deploy/oracle/test_cost_guard.py
+          python3 deploy/oracle/test_capacity_watch.py
+          python3 -O deploy/oracle/test_capacity_watch.py
           for file in deploy/oracle/*.sh; do bash -n "$file"; done
       - name: Build production ARM64 image
         run: docker buildx build --platform linux/arm64 --load -t supplyprint-oracle:arm-validation -f deploy/oracle/Dockerfile .
       - name: Exercise actual HTTPS, image, persistence and restore paths
         run: python3 deploy/oracle/validate-local.py --start
+      - name: Review real inference and persistent database under a shared 1-CPU budget
+        run: python3 deploy/oracle/validate-local.py --start --small-resource-review --skip-rollback-test
       - name: Show bounded diagnostics
         if: failure()
         run: docker compose -p sp-oracle-check --env-file reports/oracle/local.env -f deploy/oracle/compose.yml logs --tail 50 api db proxy

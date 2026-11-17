@@ -8,7 +8,9 @@ PROJECT='sp-oracle-check'
 CONFIG=ROOT/'deploy/oracle/compose.yml'
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--start',action='store_true');p.add_argument('--skip-rollback-test',action='store_true')
+p.add_argument('--small-resource-review',action='store_true',help='Disposable 1-CPU review; never changes the OCI launch plan')
 a=p.parse_args()
+if a.small_resource_review and not a.skip_rollback_test:p.error('Use --skip-rollback-test for the resource review; production rollback uses the approved base Compose.')
 REPORTS.mkdir(parents=True,exist_ok=True)
 def command(args,body=None,env=None,check=True):
     r=subprocess.run(args,input=body,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
@@ -16,7 +18,10 @@ def command(args,body=None,env=None,check=True):
         (REPORTS/'last-command-error.log').write_bytes(r.stdout+r.stderr)
         raise RuntimeError('Validation command failed; see private reports/oracle/last-command-error.log')
     return r
-def compose(*args,**kwargs):return command(['docker','compose','-p',PROJECT,'--env-file',str(ENVFILE),'-f',str(CONFIG),*args],**kwargs)
+def compose(*args,**kwargs):
+    files=['-f',str(CONFIG)]
+    if a.small_resource_review:files+=['-f',str(ROOT/'deploy/oracle/compose.review-1cpu.yml')]
+    return command(['docker','compose','-p',PROJECT,'--env-file',str(ENVFILE),*files,*args],**kwargs)
 if not ENVFILE.exists():
     subprocess.run([sys.executable,str(ROOT/'deploy/oracle/generate-env.py'),'--host','localhost','--origin','https://localhost:18443','--email','validation@example.test','--image','supplyprint-oracle:arm-validation','--output',str(ENVFILE)],check=True)
     with ENVFILE.open('a',encoding='utf-8') as f:f.write('PROXY_BIND_IP=127.0.0.1\nHTTP_PORT=18080\nHTTPS_PORT=18443\nDATABASE_NETWORK_NAME=sp-oracle-check-database\nEDGE_NETWORK_NAME=sp-oracle-check-edge\n')
@@ -85,7 +90,13 @@ def upload(client,endpoint,product):
 report={'execution_host':platform.machine(),'oci_deployed':False,'checks':{}}
 ready()
 anonymous=Client()
-status,health=anonymous.call('/actuator/health')
+for attempt in range(60):
+    try:
+        status,health=anonymous.call('/actuator/health')
+        if status==200:break
+    except (urllib.error.URLError,OSError):pass
+    time.sleep(2)
+else:raise RuntimeError('The local proxy did not become ready over verified HTTPS.')
 if status!=200 or health.get('status')!='UP' or 'components' in health:raise RuntimeError('HTTPS minimal health failed.')
 for path in ['/api/dashboard','/auth/siwe/nonce','/swagger-ui/index.html','/actuator/prometheus']:
     if anonymous.call(path)[0] not in [401,403,404]:raise RuntimeError('Unexpected public access: '+path)
@@ -109,6 +120,13 @@ for service in ['api','db']:
     if arch!='aarch64':raise RuntimeError('An actual ARM64 process was not used.')
     report['checks'][service+'_architecture']=arch
 api_info=json.loads(command(['docker','inspect',ids['api']]).stdout)[0]
+if a.small_resource_review:
+    infos=[json.loads(command(['docker','inspect',identifier]).stdout)[0] for identifier in ids.values()]
+    cpu=sum(info['HostConfig']['NanoCpus'] for info in infos)/1e9
+    memory=sum(info['HostConfig']['Memory'] for info in infos)
+    if abs(cpu-0.95)>0.0001 or memory!=2496*1024*1024:raise RuntimeError('The resource-review budgets were not applied.')
+    if 'SUPPLYPRINT_ONNX_INTRA_OP_THREADS=1' not in api_info['Config']['Env']:raise RuntimeError('Single-thread inference setting missing.')
+    report['checks']['resource_review']={'container_cpu_cap_total':cpu,'container_memory_limit_mib':memory//1048576,'full_6gb_vm_or_oci_validation':False}
 if api_info['Config']['User']!='10001:10001' or not api_info['HostConfig']['ReadonlyRootfs']:raise RuntimeError('Container privilege policy failed.')
 maps=command(['docker','exec',ids['api'],'cat','/proc/1/maps']).stdout.decode()
 if any('/opt/onnx/'+name not in maps for name in ['libonnxruntime.so','libonnxruntime4j_jni.so']):raise RuntimeError('The exact read-only native libraries were not mapped from the image.')
@@ -148,5 +166,5 @@ if not a.skip_rollback_test:
     if restored['Image']!=api_info['Image']:raise RuntimeError('Previous application image was not restored.')
     report['checks']['failed_update_restored_previous_image']=True
 report['limits']='Local ARM64 execution only; no Oracle VM, public domain, OCI firewall or VM reboot was verified.'
-(REPORTS/'local-validation.json').write_text(json.dumps(report,indent=2)+'\n')
+(REPORTS/('small-resource-validation.json' if a.small_resource_review else 'local-validation.json')).write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

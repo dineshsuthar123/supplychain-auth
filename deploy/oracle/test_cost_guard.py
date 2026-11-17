@@ -1,5 +1,7 @@
 """Cost/access checks must fail closed, including when Python assertions are disabled."""
 import importlib.util,pathlib,unittest
+from types import SimpleNamespace as NS
+from unittest import mock
 p=pathlib.Path(__file__).with_name('oci-infra.py')
 spec=importlib.util.spec_from_file_location('oracle_infra',p)
 infra=importlib.util.module_from_spec(spec);spec.loader.exec_module(infra)
@@ -35,4 +37,12 @@ class CostGuard(unittest.TestCase):
     def test_resume_rejects_changed_owner_region_or_allocation(self):
         for patch in [dict(tenancy_sha256='other'),dict(compartment_id='other'),dict(region='ap-mumbai-1'),dict(ocpus=4),dict(account_upgraded=True)]:
             with self.subTest(patch=patch),self.assertRaises(ValueError):infra.enforce_resume(self.resume_state()|patch,self.resume_snapshot())
+    def test_smaller_available_shape_cannot_open_approved_launch_gate(self):
+        models=NS(CreateCapacityReportShapeAvailabilityDetails=lambda **k:NS(**k),CapacityReportInstanceShapeConfig=lambda **k:NS(**k),CreateComputeCapacityReportDetails=lambda **k:NS(**k))
+        sdk=NS(core=NS(models=models),util=NS(to_dict=lambda x:{}),retry=NS(NoneRetryStrategy=lambda:None))
+        for cpu,ram,expected in [(2,12,True),(2,8,False),(2,6,False),(1,6,False)]:
+            item=NS(instance_shape='VM.Standard.A1.Flex',instance_shape_config=NS(ocpus=cpu,memory_in_gbs=ram),availability_status='AVAILABLE',available_count=1)
+            core=mock.Mock();core.create_compute_capacity_report.return_value.data=NS(shape_availabilities=[item])
+            with self.subTest(cpu=cpu,ram=ram),mock.patch.object(infra,'save'),mock.patch('builtins.print'):
+                self.assertIs(infra.capacity_report(sdk,{'tenancy':'approved'},dict(availability_domain='home-ad'),core),expected)
 if __name__=='__main__':unittest.main()

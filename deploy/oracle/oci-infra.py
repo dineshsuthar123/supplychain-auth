@@ -9,6 +9,7 @@ ROOT=pathlib.Path(__file__).resolve().parent
 STATE=ROOT/'state'
 SHAPE='VM.Standard.A1.Flex'
 REGION='ap-hyderabad-1'
+CAPACITY_CONFIGURATIONS=((2,12),(2,8),(2,6),(1,6))
 
 def save(name,value):
     STATE.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -53,14 +54,24 @@ def enforce_resume(state,snapshot):
     require(len(resources)==len(NETWORK_TYPES) and {r['type'] for r in resources}==NETWORK_TYPES, 'Retry requires exactly the saved network, with no VM, VNIC or volume')
     require(all(isinstance(r.get('id'),str) and r['id'] for r in resources) and len({r['id'] for r in resources})==len(resources), 'Invalid or duplicated saved resource identifiers')
 
-def capacity_report(oci,cfg,snapshot,core):
+def capacity_report(oci,cfg,snapshot,core,summary_path=None):
     requests=[oci.core.models.CreateCapacityReportShapeAvailabilityDetails(instance_shape=SHAPE,
-        instance_shape_config=oci.core.models.CapacityReportInstanceShapeConfig(ocpus=cpu,memory_in_gbs=ram)) for cpu,ram in [(2,12),(1,6)]]
+        instance_shape_config=oci.core.models.CapacityReportInstanceShapeConfig(ocpus=cpu,memory_in_gbs=ram)) for cpu,ram in CAPACITY_CONFIGURATIONS]
     report=core.create_compute_capacity_report(oci.core.models.CreateComputeCapacityReportDetails(compartment_id=cfg['tenancy'],
         availability_domain=snapshot['availability_domain'],shape_availabilities=requests),retry_strategy=oci.retry.NoneRetryStrategy()).data
     save('capacity-report.json',oci.util.to_dict(report))
     for item in report.shape_availabilities:
         print(f'A1 capacity: {item.instance_shape_config.ocpus:g} OCPU / {item.instance_shape_config.memory_in_gbs:g} GB: {item.availability_status}')
+    if summary_path:
+        # No account/resource IDs or keys in the notification summary. A fresh file is
+        # emitted only after authenticated inventory, eligibility and quota checks pass.
+        summary={'schema':1,'checked_at':now().isoformat(),'region':REGION,'shape':SHAPE,
+            'free_tier_preflight_passed':True,'approved_configuration':[2,12],
+            'configurations':[{'ocpus':item.instance_shape_config.ocpus,'ram_gb':item.instance_shape_config.memory_in_gbs,
+                'status':item.availability_status,'available_count':item.available_count} for item in report.shape_availabilities]}
+        target=pathlib.Path(summary_path).resolve();target.parent.mkdir(parents=True,exist_ok=True)
+        temporary=target.with_name(target.name+'.tmp');temporary.write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
+        os.chmod(temporary,0o600);os.replace(temporary,target)
     return any(item.instance_shape==SHAPE and item.instance_shape_config.ocpus==2 and item.instance_shape_config.memory_in_gbs==12
         and item.availability_status=='AVAILABLE' for item in report.shape_availabilities)
 
@@ -213,11 +224,13 @@ def main():
     p.add_argument('--config',default='~/.oci/config');p.add_argument('--profile',default='DEFAULT')
     p.add_argument('--compartment');p.add_argument('--console-evidence');p.add_argument('--ssh-public-key');p.add_argument('--ssh-cidr')
     p.add_argument('--reuse-instance',help='Inspect and reuse an existing eligible A1 instance; never allocate a duplicate')
+    p.add_argument('--summary-file',help='Private machine-readable output; allowed only with the read-only capacity command')
     args=p.parse_args()
+    if args.summary_file and args.action!='capacity':p.error('--summary-file is only available with capacity')
     try:
         if args.action in ['provision','retry-launch']:provision(args)
         else:
             result=inspect(args)
-            if args.action=='capacity':capacity_report(result[0],result[1],result[3],result[5])
+            if args.action=='capacity':capacity_report(result[0],result[1],result[3],result[5],args.summary_file)
     except (AssertionError,KeyError,ValueError) as error:raise SystemExit(str(error))
 if __name__=='__main__':main()
