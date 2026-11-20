@@ -8,14 +8,15 @@ import com.supplychain.productservice.exception.DuplicateProductException;
 import com.supplychain.productservice.repository.BlockchainOutboxRepository;
 import com.supplychain.productservice.repository.ProductFingerprintRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import com.supplychain.productservice.tenant.TenantContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
@@ -30,15 +31,19 @@ class FingerprintEnrollmentServiceTest {
     @Mock BlockchainOutboxRepository   outboxRepo;
 
     FingerprintEnrollmentService service;
+    private final UUID tenantId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
+        TenantContext.set(tenantId);
         service = new FingerprintEnrollmentService(fingerprintRepo, outboxRepo, new SimpleMeterRegistry());
     }
 
+    @AfterEach
+    void clearTenant() { TenantContext.clear(); }
+
     @Test
     void enroll_savesFingerprint_andQueuesOutbox() {
-        given(fingerprintRepo.existsByProductId("P001")).willReturn(false);
         given(fingerprintRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
 
@@ -55,7 +60,7 @@ class FingerprintEnrollmentServiceTest {
 
     @Test
     void enroll_throwsDuplicate_whenProductAlreadyExists() {
-        given(fingerprintRepo.existsByProductId("P001")).willReturn(true);
+        given(fingerprintRepo.existsByTenantIdAndProductId(tenantId, "P001")).willReturn(true);
         assertThatThrownBy(() -> service.enroll(new EnrollRequest("P001", null, embedding128())))
                 .isInstanceOf(DuplicateProductException.class)
                 .hasMessageContaining("P001");

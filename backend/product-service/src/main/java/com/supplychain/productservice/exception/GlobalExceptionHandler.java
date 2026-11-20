@@ -1,6 +1,8 @@
 package com.supplychain.productservice.exception;
 
 import org.slf4j.Logger;
+import org.springframework.dao.DataAccessException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +38,19 @@ public class GlobalExceptionHandler {
         log.error("ONNX model error: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Map.of("error", "AI model unavailable: " + ex.getMessage()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadSize(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(Map.of("error", "The multipart upload exceeds the image size limit"));
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleDatabaseUnavailable(DataAccessException ex) {
+        log.error("Inspection data request failed", ex);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("error", "The inspection database is temporarily unavailable"));
     }
 
     @ExceptionHandler(RuntimeException.class)

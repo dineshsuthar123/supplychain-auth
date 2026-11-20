@@ -2,126 +2,107 @@ package com.supplychain.productservice.service;
 
 import com.supplychain.productservice.blockchain.BlockchainService;
 import com.supplychain.productservice.dto.VerifyRequest;
-import com.supplychain.productservice.dto.VerifyResponse;
-import com.supplychain.productservice.entity.ProductFingerprint;
+import com.supplychain.productservice.dto.VerifyResponse.Decision;
 import com.supplychain.productservice.repository.ProductFingerprintRepository;
+import com.supplychain.productservice.repository.VerificationEventRepository;
+import com.supplychain.productservice.tenant.TenantContext;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 class FingerprintVerificationServiceTest {
+    private final UUID tenantId = UUID.randomUUID();
+    private final VerifyRequest request = new VerifyRequest("P001", Collections.nCopies(128, 0.125));
 
-    @Mock ProductFingerprintRepository fingerprintRepo;
-    @Mock BlockchainService            blockchainService;
+    @Mock ProductFingerprintRepository fingerprints;
+    @Mock VerificationEventRepository attempts;
+    @Mock BlockchainService blockchain;
 
     FingerprintVerificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new FingerprintVerificationService(fingerprintRepo, blockchainService, new SimpleMeterRegistry());
-        // Inject the threshold field (normally set via @Value)
-        injectThreshold(0.85);
+        TenantContext.set(tenantId);
+        service = new FingerprintVerificationService(fingerprints, attempts, blockchain, new SimpleMeterRegistry());
+        ReflectionTestUtils.setField(service, "similarityThreshold", 0.85);
+        given(attempts.save(any())).willAnswer(call -> call.getArgument(0));
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
     }
 
     @Test
-    void verify_returnsNotFound_whenNoRecord() {
-        given(fingerprintRepo.findClosestByProductId(anyString(), anyString()))
-                .willReturn(List.of());
-
-        VerifyResponse resp = service.verify(new VerifyRequest("P999", embedding128()));
-
-        assertThat(resp.verified()).isFalse();
-        assertThat(resp.warning()).isNotBlank();
+    void missingFingerprintHasNoScore() {
+        var response = service.verify(request);
+        assertThat(response.decision()).isEqualTo(Decision.UNKNOWN_PRODUCT);
+        assertThat(response.verified()).isFalse();
+        assertThat(response.confidence()).isNull();
     }
 
     @Test
-    void verify_returnsBelowThreshold_whenSimilarityLow() {
-        Object[] row = buildRow(0.60);
-        given(fingerprintRepo.findClosestByProductId(anyString(), anyString()))
-                .willReturn(List.of(row));
-
-        VerifyResponse resp = service.verify(new VerifyRequest("P001", embedding128()));
-
-        assertThat(resp.verified()).isFalse();
-        assertThat(resp.confidence()).isEqualTo(0.60);
+    void lowSimilarityPreservesAnActualZeroScore() {
+        candidate(0, null, null);
+        var response = service.verify(request);
+        assertThat(response.decision()).isEqualTo(Decision.NO_MATCH);
+        assertThat(response.verified()).isFalse();
+        assertThat(response.confidence()).isZero();
     }
 
     @Test
-    void verify_returnsVerifiedWithBlockchain_whenAboveThreshold() throws Exception {
-        Object[] row = buildRow(0.97);
-        given(fingerprintRepo.findClosestByProductId(anyString(), anyString()))
-                .willReturn(List.of(row));
-
-        ProductFingerprint fp = new ProductFingerprint("P001", new float[128], "abc123", null);
-        fp.setTransactionHash("0xdeadbeef");
-        fp.setBlockNumber(12345L);
-        given(fingerprintRepo.findByProductId("P001")).willReturn(Optional.of(fp));
-        given(blockchainService.verifyOnChain("P001", "abc123")).willReturn(true);
-        given(blockchainService.isBlockchainEnabled()).willReturn(true);
-
-        VerifyResponse resp = service.verify(new VerifyRequest("P001", embedding128()));
-
-        assertThat(resp.verified()).isTrue();
-        assertThat(resp.blockchainConfirmed()).isTrue();
-        assertThat(resp.confidence()).isEqualTo(0.97);
-        assertThat(resp.transactionHash()).isEqualTo("0xdeadbeef");
+    void matchCanSucceedWithoutLedgerConfirmation() {
+        candidate(0.97, null, null);
+        var response = service.verify(request);
+        assertThat(response.decision()).isEqualTo(Decision.MATCH);
+        assertThat(response.verified()).isTrue();
+        assertThat(response.blockchainConfirmed()).isFalse();
+        assertThat(response.warning()).contains("unconfirmed");
     }
 
     @Test
-    void verify_degradesGracefully_whenBlockchainUnreachable() throws Exception {
-        Object[] row = buildRow(0.95);
-        given(fingerprintRepo.findClosestByProductId(anyString(), anyString()))
-                .willReturn(List.of(row));
+    void ledgerMismatchPreservesHighSimilarity() throws Exception {
+        ReflectionTestUtils.setField(service, "requireLiveBlockchain", true);
+        candidate(0.97, "0xdeadbeef", 12345L);
+        given(blockchain.verifyOnChain("P001", "feature-hash")).willReturn(false);
 
-        ProductFingerprint fp = new ProductFingerprint("P001", new float[128], "abc123", null);
-        given(fingerprintRepo.findByProductId("P001")).willReturn(Optional.of(fp));
-        given(blockchainService.verifyOnChain(anyString(), anyString()))
-                .willReturn(null); // circuit open fallback
-        given(blockchainService.isBlockchainEnabled()).willReturn(true);
-
-        VerifyResponse resp = service.verify(new VerifyRequest("P001", embedding128()));
-
-        assertThat(resp.verified()).isTrue();
-        assertThat(resp.blockchainConfirmed()).isFalse();
-        assertThat(resp.warning()).isNotBlank();
+        var response = service.verify(request);
+        assertThat(response.decision()).isEqualTo(Decision.LEDGER_MISMATCH);
+        assertThat(response.verified()).isFalse();
+        assertThat(response.confidence()).isEqualTo(0.97);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    @Test
+    void unavailableLiveLedgerReturnsPersistedAttestation() throws Exception {
+        ReflectionTestUtils.setField(service, "requireLiveBlockchain", true);
+        candidate(0.97, "0xdeadbeef", 12345L);
+        given(blockchain.verifyOnChain("P001", "feature-hash")).willThrow(new IllegalStateException());
 
-    /** Inject private @Value field via reflection for unit test */
-    private void injectThreshold(double threshold) {
-        try {
-            var field = FingerprintVerificationService.class.getDeclaredField("similarityThreshold");
-            field.setAccessible(true);
-            field.set(service, threshold);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        var response = service.verify(request);
+        assertThat(response.decision()).isEqualTo(Decision.MATCH);
+        assertThat(response.blockchainConfirmed()).isTrue();
+        assertThat(response.transactionHash()).isEqualTo("0xdeadbeef");
+        assertThat(response.warning()).contains("unavailable");
     }
 
-    /**
-     * Build a synthetic native query result row where the last column is the similarity score.
-     * The real query returns all columns of product_fingerprints plus similarity at the end.
-     */
-    private static Object[] buildRow(double similarity) {
-        // We only care about the last element (similarity); null the rest
-        return new Object[]{null, null, null, null, null, null, null, null, similarity};
-    }
-
-    private static List<Double> embedding128() {
-        Double[] arr = new Double[128];
-        for (int i = 0; i < 128; i++) arr[i] = (double) i / 128.0;
-        return List.of(arr);
+    private void candidate(double score, String hash, Long block) {
+        given(fingerprints.findVerificationCandidate(eq(tenantId), eq("P001"), anyString()))
+                .willReturn(List.<Object[]>of(new Object[]{"feature-hash", hash, block, score}));
     }
 }

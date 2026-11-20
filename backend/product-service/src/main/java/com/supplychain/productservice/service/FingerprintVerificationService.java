@@ -3,6 +3,7 @@ package com.supplychain.productservice.service;
 import com.supplychain.productservice.blockchain.BlockchainService;
 import com.supplychain.productservice.dto.VerifyRequest;
 import com.supplychain.productservice.dto.VerifyResponse;
+import com.supplychain.productservice.dto.VerifyResponse.Decision;
 import com.supplychain.productservice.entity.VerificationEvent;
 import com.supplychain.productservice.repository.ProductFingerprintRepository;
 import com.supplychain.productservice.repository.VerificationEventRepository;
@@ -61,45 +62,50 @@ public class FingerprintVerificationService {
     public VerifyResponse verify(VerifyRequest request) {
         Timer.Sample total = Timer.start(meterRegistry);
         try {
-        verifyCounter.increment();
-        UUID tenantId = TenantContext.getRequired();
+            UUID tenantId = TenantContext.getRequired();
+            verifyCounter.increment();
+            VerifyResponse response = evaluate(tenantId, request);
+            return persist(tenantId, request.productId(), response);
+        } finally {
+            total.stop(totalTimer);
+        }
+    }
+
+    private VerifyResponse evaluate(UUID tenantId, VerifyRequest request) {
         String vector = toPgVectorLiteral(request.embedding());
         List<Object[]> rows = vectorSearchTimer.record(() ->
                 fingerprintRepo.findVerificationCandidate(tenantId, request.productId(), vector));
-        if (rows == null || rows.isEmpty()) return persist(tenantId, request.productId(), VerifyResponse.notFound());
+        if (rows == null || rows.isEmpty()) return VerifyResponse.notFound();
 
         Object[] row = rows.get(0);
         double similarity = ((Number) row[3]).doubleValue();
-        if (similarity < similarityThreshold) return persist(tenantId, request.productId(), VerifyResponse.belowThreshold(similarity));
+        if (similarity < similarityThreshold) return VerifyResponse.belowThreshold(similarity);
 
         String featureHash = (String) row[0];
         String transactionHash = (String) row[1];
         Long blockNumber = row[2] == null ? null : ((Number) row[2]).longValue();
-
         boolean persistedAttestation = transactionHash != null && blockNumber != null;
+
         if (!requireLiveBlockchain) {
-            String warning = persistedAttestation ? null : "Ledger attestation is pending; database identity match succeeded";
-            return persist(tenantId, request.productId(), new VerifyResponse(true, similarity, persistedAttestation,
-                    transactionHash, blockNumber, warning));
+            String warning = persistedAttestation ? null : "Database identity match succeeded. Ledger attestation is unconfirmed.";
+            return new VerifyResponse(Decision.MATCH, similarity, persistedAttestation, transactionHash, blockNumber, warning);
         }
         try {
-            boolean chainMatches = blockchainService.verifyOnChain(request.productId(), featureHash);
-            if (!chainMatches) return persist(tenantId, request.productId(), new VerifyResponse(false, similarity, false,
-                    null, null, "Ledger hash mismatch"));
-            return persist(tenantId, request.productId(), new VerifyResponse(true, similarity, true,
-                    transactionHash, blockNumber, null));
+            if (!blockchainService.verifyOnChain(request.productId(), featureHash)) {
+                return new VerifyResponse(Decision.LEDGER_MISMATCH, similarity, false, null, null, "Ledger hash mismatch");
+            }
+            return new VerifyResponse(Decision.MATCH, similarity, true, transactionHash, blockNumber, null);
         } catch (Exception ignored) {
-            return persist(tenantId, request.productId(), new VerifyResponse(true, similarity, persistedAttestation,
-                    transactionHash, blockNumber, "Live ledger check unavailable; returned persisted attestation state"));
+            return new VerifyResponse(Decision.MATCH, similarity, persistedAttestation, transactionHash, blockNumber,
+                    "Live ledger check unavailable; returned persisted attestation state");
         }
-        } finally { total.stop(totalTimer); }
     }
 
     private VerifyResponse persist(UUID tenantId, String productId, VerifyResponse response) {
-        auditWriteTimer.record(() -> verificationEventRepo.save(new VerificationEvent(tenantId, productId, response.verified(),
-                response.confidence() == null ? 0d : response.confidence(), response.blockchainConfirmed())));
+        VerificationEvent event = auditWriteTimer.record(() ->
+                verificationEventRepo.save(new VerificationEvent(tenantId, productId, response)));
         meterRegistry.counter("verification.result.count", "result", response.verified() ? "verified" : "rejected").increment();
-        return response;
+        return event.toResponse();
     }
 
     private static String toPgVectorLiteral(List<Double> embedding) {

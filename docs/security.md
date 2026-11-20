@@ -14,6 +14,14 @@ Passwords use BCrypt. Login returns an access token and puts the rotating refres
 
 `SUPPLYPRINT_CORS_ALLOWED_ORIGINS` controls allowed origins (default `http://localhost:3000`); wildcard credentials are not enabled. Image uploads are validated by magic bytes and decoder, accept only binary JPEG/PNG, require sane dimensions, and cap payloads at 10 MB. SVG/XML/polyglot inputs fail the binary-signature check.
 
+## Inspection photos and evidence
+
+Enrollment and verification accept multipart requests with a product ID and a JPEG or PNG photo. Only enrollment accepts metadata. ONNX uses the photo to derive the fingerprint in memory. The service saves the vector, hash, and audit data without retaining the image bytes. The browser can compare against its latest successfully enrolled photo in the same tab. Reloading or signing out clears that photo.
+
+The product evidence endpoint returns tenant-scoped enrollment data and pages of verification attempts, newest first. Each completed verification has its own attempt ID and server timestamp, including retakes. Flyway migration V9 adds decision details for new attempts. Older records keep the outcome and score information available at the time.
+
+Use same-origin routing for /auth, /api, and /actuator in browser deployments so the HttpOnly refresh cookie is sent to the service.
+
 ## Rate limiting and limitations
 
 `ApiRateLimitFilter` enforces a 120 request/minute per-IP/per-route fixed window by default. It is intentionally an in-process safety valve; production multi-instance deployments must move this counter to Redis, gateway, or a dedicated rate-limit service.

@@ -11,5 +11,5 @@ public record DashboardResponse(
         long pendingAttestations,
         List<Activity> recentActivity
 ) {
-    public record Activity(String action, String productId, String time, String state) { }
+    public record Activity(String action, String productId, String time, String state, String decision) { }
 }
