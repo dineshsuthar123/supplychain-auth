@@ -1,31 +1,41 @@
 package com.supplychain.productservice.dto;
 
-/**
- * Result of verifying a physical product fingerprint.
- *
- * {@code verified} is {@code true} only when:
- *   1. A matching embedding is found in the DB (cosine similarity >= threshold), AND
- *   2. The on-chain hash matches (blockchainConfirmed = true).
- *
- * If the blockchain is unreachable (circuit open), {@code blockchainConfirmed} is
- * {@code false} and {@code warning} explains the degraded mode.
- */
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/** A fingerprint decision and, after persistence, its audit identity. */
 public record VerifyResponse(
         boolean verified,
-        /** Cosine similarity score in [0, 1]; null if no candidate found. */
         Double confidence,
         boolean blockchainConfirmed,
         String transactionHash,
         Long blockNumber,
-        /** Non-null when blockchain is unavailable or result is ambiguous. */
-        String warning
+        String warning,
+        Decision decision,
+        String productId,
+        UUID attemptId,
+        LocalDateTime createdAt
 ) {
+    public enum Decision { MATCH, NO_MATCH, UNKNOWN_PRODUCT, LEDGER_MISMATCH }
+
+    public VerifyResponse(Decision decision, Double confidence, boolean blockchainConfirmed,
+                          String transactionHash, Long blockNumber, String warning) {
+        this(decision == Decision.MATCH, confidence, blockchainConfirmed, transactionHash, blockNumber,
+                warning, decision, null, null, null);
+    }
+
+    public VerifyResponse recordedAs(String productId, UUID attemptId, LocalDateTime createdAt) {
+        return new VerifyResponse(verified, confidence, blockchainConfirmed, transactionHash, blockNumber, warning,
+                decision, productId, attemptId, createdAt);
+    }
+
     public static VerifyResponse notFound() {
-        return new VerifyResponse(false, null, false, null, null, "No fingerprint on record for this product");
+        return new VerifyResponse(Decision.UNKNOWN_PRODUCT, null, false, null, null,
+                "No fingerprint on record for this product");
     }
 
     public static VerifyResponse belowThreshold(double confidence) {
-        return new VerifyResponse(false, confidence, false, null, null,
+        return new VerifyResponse(Decision.NO_MATCH, confidence, false, null, null,
                 "Similarity %.3f below verification threshold".formatted(confidence));
     }
 }

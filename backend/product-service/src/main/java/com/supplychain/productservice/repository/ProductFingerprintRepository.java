@@ -50,7 +50,10 @@ public interface ProductFingerprintRepository extends JpaRepository<ProductFinge
      * through Hibernate's array mapper is both unnecessary and driver-specific.
      */
     @Query(value = """
-            SELECT pf.product_id, pf.feature_hash, pf.transaction_hash, pf.block_number, pf.created_at
+            SELECT pf.product_id, pf.feature_hash, pf.transaction_hash, pf.block_number, pf.created_at,
+                   (SELECT status FROM blockchain_outbox bo
+                    WHERE bo.tenant_id = pf.tenant_id AND bo.product_id = pf.product_id
+                    ORDER BY bo.created_at DESC LIMIT 1) AS ledger_status
             FROM product_fingerprints pf
             WHERE pf.tenant_id = :tenantId AND pf.product_id = :productId
             LIMIT 1

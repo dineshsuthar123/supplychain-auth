@@ -5,7 +5,9 @@ import com.supplychain.productservice.dto.EnrollResponse;
 import com.supplychain.productservice.dto.VerifyRequest;
 import com.supplychain.productservice.dto.VerifyResponse;
 import com.supplychain.productservice.ai.EmbeddingService;
-import com.supplychain.productservice.entity.ProductFingerprint;
+import com.supplychain.productservice.entity.VerificationEvent;
+import com.supplychain.productservice.repository.VerificationEventRepository;
+import org.springframework.data.domain.PageRequest;
 import com.supplychain.productservice.exception.DuplicateProductException;
 import com.supplychain.productservice.repository.ProductFingerprintRepository;
 import com.supplychain.productservice.service.FingerprintEnrollmentService;
@@ -22,6 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.UUID;
 import com.supplychain.productservice.tenant.TenantContext;
 import com.supplychain.productservice.security.ImageCaptureValidator;
 
@@ -44,17 +48,20 @@ public class SupplyPrintController {
     private final ProductFingerprintRepository  fingerprintRepo;
     private final EmbeddingService embeddingService;
     private final DashboardService dashboardService;
+    private final VerificationEventRepository verificationEventRepo;
 
     public SupplyPrintController(FingerprintEnrollmentService enrollmentService,
                                   FingerprintVerificationService verificationService,
                                   ProductFingerprintRepository fingerprintRepo,
                                   EmbeddingService embeddingService,
-                                  DashboardService dashboardService) {
+                                  DashboardService dashboardService,
+                                  VerificationEventRepository verificationEventRepo) {
         this.enrollmentService  = enrollmentService;
         this.verificationService = verificationService;
         this.fingerprintRepo    = fingerprintRepo;
         this.embeddingService   = embeddingService;
         this.dashboardService   = dashboardService;
+        this.verificationEventRepo = verificationEventRepo;
     }
 
     @GetMapping("/dashboard")
@@ -75,12 +82,12 @@ public class SupplyPrintController {
                                          @RequestParam("image") MultipartFile image) {
         try {
             EnrollResponse response = enrollmentService.enroll(new EnrollRequest(
-                    productId, metadata, embeddingFrom(image)));
+                    validatedProductId(productId), metadata, embeddingFrom(image)));
             return ResponseEntity.accepted().body(response);
         } catch (DuplicateProductException ex) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", ex.getMessage(), "productId", ex.getProductId()));
-        } catch (Exception ex) {
+        } catch (IllegalArgumentException | java.io.IOException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
     }
@@ -124,36 +131,53 @@ public class SupplyPrintController {
     public ResponseEntity<?> verifyImage(@RequestParam String productId,
                                          @RequestParam("image") MultipartFile image) {
         try {
-            return ResponseEntity.ok(verificationService.verify(new VerifyRequest(productId, embeddingFrom(image))));
-        } catch (Exception ex) {
+            return ResponseEntity.ok(verificationService.verify(new VerifyRequest(validatedProductId(productId), embeddingFrom(image))));
+        } catch (IllegalArgumentException | java.io.IOException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
     }
 
-    /**
-     * Returns the enrollment record + on-chain status for a given productId.
-     * Useful as an immutable audit trail link (can be bookmarked alongside Polygonscan).
-     */
     @GetMapping("/verify/{productId}/log")
-    @Operation(summary = "Get enrollment log for a product",
-               description = "Returns the stored featureHash, txHash, and blockNumber.")
-    public ResponseEntity<?> enrollmentLog(@PathVariable String productId) {
-        List<Object[]> rows = fingerprintRepo.findEnrollmentLog(TenantContext.getRequired(), productId);
+    @Operation(summary = "Get enrollment evidence and paginated verification attempts")
+    public ResponseEntity<?> enrollmentLog(@PathVariable String productId,
+                                           @RequestParam(defaultValue = "0") int page) {
+        if (page < 0) return ResponseEntity.badRequest().body(Map.of("error", "Invalid history page"));
+        UUID tenantId = TenantContext.getRequired();
+        var attempts = verificationEventRepo.findByTenantIdAndProductIdOrderByCreatedAtDescIdDesc(
+                tenantId, productId, PageRequest.of(page, 20));
+        List<Object[]> rows = fingerprintRepo.findEnrollmentLog(tenantId, productId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("productId", productId);
+        result.put("attempts", attempts.map(VerificationEvent::toResponse).getContent());
+        result.put("hasMoreAttempts", attempts.hasNext());
         if (rows.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Product not found: " + productId));
+            result.put("error", "Product not found: " + productId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
         }
-        Object[] fp = rows.get(0);
-        return ResponseEntity.ok(Map.of(
-                "productId",        fp[0],
-                "featureHash",      fp[1],
-                "transactionHash",  fp[2] != null ? fp[2] : "PENDING",
-                "blockNumber",      fp[3] != null ? fp[3] : -1,
-                "createdAt",        fp[4],
-                "polygonscanUrl",   fp[2] != null
-                        ? "https://mumbai.polygonscan.com/tx/" + fp[2]
-                        : "Pending blockchain confirmation"
-        ));
+        Object[] fingerprint = rows.get(0);
+        result.put("featureHash", fingerprint[1]);
+        result.put("transactionHash", fingerprint[2] != null ? fingerprint[2] : "PENDING");
+        result.put("blockNumber", fingerprint[3] != null ? fingerprint[3] : -1);
+        result.put("createdAt", fingerprint[4]);
+        result.put("polygonscanUrl", fingerprint[2] != null
+                ? "https://mumbai.polygonscan.com/tx/" + fingerprint[2]
+                : "Pending blockchain confirmation");
+        result.put("ledgerStatus", fingerprint[2] != null && fingerprint[3] != null ? "CONFIRMED" : fingerprint[5]);
+        return ResponseEntity.ok(result);
+    }
+
+    // The query form also accepts identifiers containing URL path separators.
+    @GetMapping("/verify/log")
+    public ResponseEntity<?> enrollmentLogByQuery(@RequestParam String productId,
+                                                  @RequestParam(defaultValue = "0") int page) {
+        return enrollmentLog(productId, page);
+    }
+
+    private static String validatedProductId(String productId) {
+        if (productId.isBlank() || productId.codePointCount(0, productId.length()) > 255) {
+            throw new IllegalArgumentException("Product ID must contain 1 to 255 characters");
+        }
+        return productId;
     }
 
     private java.util.List<Double> embeddingFrom(MultipartFile image) throws java.io.IOException {

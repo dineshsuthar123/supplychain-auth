@@ -1,38 +1,298 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import './backend-status.css';
+import { api, AuthProvider, useAuth } from './auth';
+import CaptureFlow from './CaptureFlow';
+import { ledgerLabel, serviceError, verdict } from './inspection';
+import { Brand, Button, Data, Heading, Icon, Notice, Status, Time } from './ui';
 
-const BASE = process.env.REACT_APP_API_BASE || '';
-const API_HEALTH_POLL_MS = 10000;
-const API_HEALTH_TIMEOUT_MS = 5000;
-const Auth = createContext(null);
-const useAuth = () => useContext(Auth);
-const short = value => value ? `${value.slice(0, 12)}...${value.slice(-5)}` : '—';
+const nav = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'verify', label: 'Inspection desk' },
+  { id: 'enroll', label: 'Enroll reference' },
+  { id: 'audit', label: 'Evidence log' }
+];
 
-function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('sp_user') || 'null'));
-  const [token, setToken] = useState(() => localStorage.getItem('sp_token'));
-  const complete = data => { setUser(data.user); setToken(data.accessToken); localStorage.setItem('sp_user', JSON.stringify(data.user)); localStorage.setItem('sp_token', data.accessToken); };
-  const login = async (emailOrUsername, password) => complete((await axios.post(`${BASE}/auth/login`, { emailOrUsername, password })).data);
-  const register = async payload => complete((await axios.post(`${BASE}/auth/register`, payload)).data);
-  const logout = () => { setUser(null); setToken(null); localStorage.removeItem('sp_user'); localStorage.removeItem('sp_token'); };
-  return <Auth.Provider value={{user, token, login, register, logout, authHeader: token ? {Authorization:`Bearer ${token}`} : {}}}>{children}</Auth.Provider>;
+function permissions(role) {
+  return {
+    enroll: ['ADMIN', 'MANUFACTURER'].includes(role),
+    verify: ['ADMIN', 'MANUFACTURER', 'VERIFIER'].includes(role),
+    read: ['ADMIN', 'MANUFACTURER', 'VERIFIER', 'AUDITOR'].includes(role)
+  };
 }
-function Icon({name}) { const path={grid:'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z',plus:'M12 5v14M5 12h14',search:'m20 20-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z',vault:'M4 5h16v14H4V5Zm0 4h16M8 5v4m8-4v4',shield:'M12 3 20 6v5c0 5.1-3.4 8.7-8 10-4.6-1.3-8-4.9-8-10V6l8-3Zm-3.5 9 2.2 2.2 4.8-4.8',check:'m5 12 4.2 4.2L19 6.5',user:'M20 21a8 8 0 0 0-16 0m12-12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',logout:'M10 5H5v14h5m4-4 5-3-5-3m5 3H10'};return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={path[name]||path.grid}/></svg> }
-const Button=({children,kind='primary',icon,...p})=><button className={`button button--${kind}`} {...p}>{icon&&<Icon name={icon}/>} {children}</button>;
-const Status=({children,tone='good'})=><span className={`status status--${tone}`}><i/>{children}</span>;
-const Data=({label,value})=><div><span>{label}</span><b>{value ?? '—'}</b></div>;
 
-function Login({close}) { const {login,register}=useAuth();const [mode,setMode]=useState('login');const [f,setF]=useState({email:'',username:'',password:'',role:'MANUFACTURER'});const [error,setError]=useState('');const submit=async e=>{e.preventDefault();try{mode==='login'?await login(f.email,f.password):await register({email:f.email,username:f.username,password:f.password,displayName:f.username,role:f.role});close()}catch(x){setError(x.response?.data?.message||x.response?.data?.error||x.message)}};return <div className="modal-backdrop"><section className="auth-modal"><h2>{mode==='login'?'Enter the control room.':'Provision workspace.'}</h2>{error&&<div className="form-error">{error}</div>}<form className="auth-form" onSubmit={submit}>{mode==='register'&&<label>Operator name<input required onChange={e=>setF({...f,username:e.target.value})}/></label>}<label>Work email<input required type="email" onChange={e=>setF({...f,email:e.target.value})}/></label><label>Password<input required type="password" onChange={e=>setF({...f,password:e.target.value})}/></label>{mode==='register'&&<label>Access profile<select onChange={e=>setF({...f,role:e.target.value})}><option>MANUFACTURER</option><option>VERIFIER</option></select></label>}<Button type="submit">{mode==='login'?'Sign in securely':'Create workspace'}</Button></form><button className="text-button" onClick={()=>setMode(mode==='login'?'register':'login')}>{mode==='login'?'Create an account':'Sign in'}</button></section></div> }
-function Metrics({data}) { const rate=data?.verificationsToday?`${((1-data.failedVerificationsToday/data.verificationsToday)*100).toFixed(1)}%`:'—';return <section className="metrics-grid"><article className="metric"><p>PRODUCTS ATTESTED</p><strong>{data?.productsAttested??'—'}</strong></article><article className="metric"><p>ATTESTED TODAY</p><strong>{data?.productsAttestedToday??'—'}</strong></article><article className="metric"><p>VERIFICATION RATE</p><strong>{rate}</strong></article><article className="metric"><p>PENDING ATTESTATIONS</p><strong>{data?.pendingAttestations??'—'}</strong></article></section> }
-function Activity({items}) { if(!items?.length)return <p className="panel-copy">No database events recorded yet.</p>;return <div className="activity-list">{items.map((item,i)=><div className="activity-row" key={`${item.productId}-${item.time}-${i}`}><span className={`activity-icon ${item.state==='REVIEW'?'activity-icon--bad':'activity-icon--good'}`}><Icon name={item.state==='REVIEW'?'shield':'check'}/></span><div><b>{item.action}</b><code>{item.productId}</code></div><time>{new Date(item.time).toLocaleString()}</time><Status tone={item.state==='REVIEW'?'danger':'good'}>{item.state}</Status></div>)}</div> }
-function Dashboard({data,health,setView}) {return <div className="page-enter"><div className="page-heading"><div><span className="eyebrow">COMMAND CENTER / LIVE DATABASE</span><h1>Supply chain, <em>verified.</em></h1><p>All figures below are retrieved from PostgreSQL audit and provenance records.</p></div><Button icon="plus" onClick={()=>setView('enroll')}>Enroll item</Button></div><Metrics data={data}/><section className="dashboard-grid"><article className="panel chain-panel"><div className="panel__head"><div><span className="eyebrow">VERIFICATION FLOW</span><h2>Persistent provenance</h2></div><Status tone={health==='UP'?'good':'danger'}>{health==='UP'?'NOMINAL':'DEGRADED'}</Status></div><div className="chain-line"><div className="chain-node chain-node--active"><span>01</span><b>Physical capture</b><small>ONNX inference</small></div><div className="chain-link"/><div className="chain-node chain-node--active"><span>02</span><b>Vector match</b><small>PostgreSQL + pgvector</small></div><div className="chain-link"/><div className="chain-node"><span>03</span><b>Attestation</b><small>Transactional outbox</small></div></div></article><article className="panel integrity-panel"><span className="eyebrow">RISK POSTURE</span><h2>Failed checks today</h2><div className="integrity-score"><strong>{data?.failedVerificationsToday??'—'}</strong><span>events</span></div><p className="panel-copy">This is the persisted verification-audit count.</p></article></section><section className="panel activity-panel" style={{marginTop:19}}><span className="eyebrow">LIVE EVENT TAPE</span><h2>Recent activity</h2><Activity items={data?.recentActivity}/></section></div>}
-function Capture({file,setFile}) {return <label className="capture-input">Physical product image<input required type="file" accept="image/jpeg,image/png" onChange={e=>setFile(e.target.files?.[0]||null)}/><small>{file?file.name:'JPEG or PNG up to 10 MB. Server-side ONNX derives the fingerprint.'}</small></label>}
-function Result({result,label}){const bad=!result.ok||result.data?.verified===false;return <section className={`result ${bad?'result--bad':'result--good'}`}><div className="result__head"><span className="result__icon"><Icon name={bad?'shield':'check'}/></span><div><span className="eyebrow">{label.toUpperCase()} RESPONSE</span><h2>{bad?'Identity was not confirmed':label==='Enrollment'?'Identity saved to database':'Product identity confirmed'}</h2></div></div>{!result.ok?<p>{result.msg}</p>:<div className="result__data"><Data label="Product ID" value={result.data.productId}/><Data label={label==='Enrollment'?'Feature hash':'Similarity'} value={label==='Enrollment'?short(result.data.featureHash):result.data.confidence?.toFixed(4)}/><Data label="Ledger status" value={result.data.blockchainConfirmed?'Confirmed':result.data.status||'Pending'}/></div>}</section>}
-function Workflow({type,title,description,children}) {return <div className="page-enter workflow"><div className="page-heading"><div><span className="eyebrow">{type}</span><h1>{title}</h1><p>{description}</p></div></div><div className="workflow-grid"><section className="panel form-panel">{children}</section><aside className="workflow-aside"><div className="process-card"><span className="eyebrow">SECURE WORKFLOW</span><ol><li><i>01</i><div><b>Capture</b><span>Product image</span></div></li><li><i>02</i><div><b>Compute</b><span>ONNX fingerprint</span></div></li><li><i>03</i><div><b>Persist</b><span>PostgreSQL + ledger outbox</span></div></li></ol></div></aside></div></div>}
-function CaptureFlow({verify,refresh}) {const {authHeader}=useAuth();const [id,setId]=useState('');const [meta,setMeta]=useState('');const [file,setFile]=useState(null);const [result,setResult]=useState(null);const [busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();if(!file)return;setBusy(true);try{const form=new FormData();form.append('productId',id);form.append('image',file);if(!verify&&meta)form.append('metadata',meta);const {data}=await axios.post(`${BASE}/api/${verify?'verify':'enroll'}/image`,form,{headers:authHeader});setResult({ok:true,data});refresh()}catch(x){setResult({ok:false,msg:x.response?.data?.error||x.response?.data?.message||x.message})}finally{setBusy(false)}};return <Workflow type={verify?'FIELD VERIFICATION / 03':'IDENTITY REGISTRY / 02'} title={verify?'Prove the product in hand.':'Enroll a physical identity.'} description="No client-side vectors or test data are generated. Each submission uses the supplied physical image."><form className="data-form" onSubmit={submit}><div className="form-section"><span>PRODUCT CONTEXT</span><label>Product identifier<input required value={id} onChange={e=>setId(e.target.value)} placeholder="e.g. PHARMA-LOT4892-2026"/></label><Capture file={file} setFile={setFile}/>{!verify&&<label>Metadata <em>OPTIONAL</em><textarea value={meta} onChange={e=>setMeta(e.target.value)} /></label>}</div><div className="form-actions"><Button disabled={busy} icon={verify?'search':'plus'}>{busy?'Processing physical capture…':verify?'Run verification':'Capture & enroll'}</Button></div></form>{result&&<Result result={result} label={verify?'Verification':'Enrollment'}/>}</Workflow>}
-function Audit(){const {authHeader}=useAuth();const [id,setId]=useState('');const [r,setR]=useState(null);const go=async e=>{e.preventDefault();try{setR({ok:true,data:(await axios.get(`${BASE}/api/verify/${encodeURIComponent(id)}/log`,{headers:authHeader})).data})}catch(x){setR({ok:false,msg:x.response?.data?.error||x.message})}};return <div className="page-enter audit-page"><div className="page-heading"><div><span className="eyebrow">EVIDENCE VAULT / 04</span><h1>Retrieve the <em>record.</em></h1></div></div><section className="panel audit-search"><form onSubmit={go}><label>Search by product identifier<input required value={id} onChange={e=>setId(e.target.value)}/></label><Button icon="search">Query vault</Button></form></section>{r&&(r.ok?<section className="panel evidence-record"><h2>{r.data.productId}</h2><div className="evidence-grid"><Data label="Feature hash" value={short(r.data.featureHash)}/><Data label="Ledger block" value={r.data.blockNumber}/><Data label="Recorded" value={new Date(r.data.createdAt).toLocaleString()}/></div></section>:<section className="result result--bad"><p>{r.msg}</p></section>)}</div>}
-async function probeBackend(){const started=performance.now();const checkedAt=new Date();try{const response=await axios.get(`${BASE}/actuator/health`,{timeout:API_HEALTH_TIMEOUT_MS,validateStatus:()=>true});const reportedStatus=response.data?.status||'UNKNOWN';const available=response.status>=200&&response.status<500&&reportedStatus==='UP';const maintenance=response.status===503||reportedStatus==='OUT_OF_SERVICE'||reportedStatus==='MAINTENANCE';return {available,status:reportedStatus,httpStatus:response.status,responseMs:Math.round(performance.now()-started),lastChecked:checkedAt,message:available?'Backend online':maintenance?'Backend is under maintenance':'Backend is down'}}catch(error){return {available:false,status:'DOWN',httpStatus:error.response?.status,responseMs:null,lastChecked:checkedAt,message:error.code==='ECONNABORTED'?'Backend health check timed out':'Backend is down or unreachable'}}}
-function BackendNotice({backend,onRetry}){if(backend.available)return null;const checked=backend.lastChecked?backend.lastChecked.toLocaleTimeString():null;return <section className="backend-notice" role="status" aria-live="polite"><span className="backend-notice__icon"><Icon name="shield"/></span><div><span className="eyebrow">SERVICE STATUS</span><h2>{backend.message || 'Backend is down or under maintenance'}</h2><p>Live database-backed actions are temporarily unavailable. The application will keep checking automatically every {API_HEALTH_POLL_MS/1000} seconds.</p><small>{checked?`Last checked ${checked}${backend.httpStatus?` • HTTP ${backend.httpStatus}`:''}${backend.responseMs?` • ${backend.responseMs} ms`:''}`:'Checking backend status…'}</small></div><Button kind="secondary" onClick={onRetry}>Retry now</Button></section>}
-function Shell(){const {user,logout,token}=useAuth();const [view,setView]=useState('dashboard');const [auth,setAuth]=useState(false);const [data,setData]=useState(null);const [backend,setBackend]=useState({available:false,status:'CHECKING',message:'Checking backend status',lastChecked:null});const refresh=useCallback(async()=>{const nextHealth=await probeBackend();setBackend(nextHealth);if(!token){setData(null);return nextHealth}if(!nextHealth.available)return nextHealth;try{const headers={Authorization:`Bearer ${token}`};const dashboard=await axios.get(`${BASE}/api/dashboard`,{headers,timeout:API_HEALTH_TIMEOUT_MS});setData(dashboard.data)}catch(error){if(error.response?.status>=500)setBackend(current=>({...current,available:false,status:'DEGRADED',message:'Backend dashboard API is unavailable',httpStatus:error.response.status,lastChecked:new Date()}))}return nextHealth},[token]);useEffect(()=>{refresh();const i=setInterval(refresh,API_HEALTH_POLL_MS);return()=>clearInterval(i)},[refresh]);const nav=[['dashboard','Overview','grid'],['enroll','Enroll identity','plus'],['verify','Verify product','search'],['audit','Evidence vault','vault']];const pages={dashboard:<Dashboard data={data} health={backend.available?'UP':backend.status} setView={setView}/>,enroll:<CaptureFlow refresh={refresh}/>,verify:<CaptureFlow verify refresh={refresh}/>,audit:<Audit/>};return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand__mark"><span/><span/><span/></span><div><b>SupplyPrint</b><small>IDENTITY NETWORK</small></div></div><nav>{nav.map(n=><button key={n[0]} className={view===n[0]?'active':''} onClick={()=>setView(n[0])}><Icon name={n[2]}/><span>{n[1]}</span></button>)}</nav></aside><main><header className="topbar"><div className="crumb"><span>NETWORK</span><b>{nav.find(n=>n[0]===view)?.[1]}</b></div><div className="topbar__actions"><Status tone={backend.available?'good':'danger'}>{backend.available?'API ONLINE':'API DOWN'}</Status>{token?<div className="profile"><span>{(user?.displayName||user?.username||'O')[0]}</span><div><b>{user?.displayName||user?.username}</b><small>{user?.role}</small></div><button className="icon-button" onClick={logout}><Icon name="logout"/></button></div>:<Button kind="secondary" icon="user" onClick={()=>setAuth(true)}>Operator sign in</Button>}</div></header><BackendNotice backend={backend} onRetry={refresh}/><div className="content">{pages[view]}</div></main>{auth&&<Login close={()=>setAuth(false)}/>}</div>}
-export default function App(){return <AuthProvider><Shell/></AuthProvider>}
+function SignIn() {
+  const { signIn, expired } = useAuth();
+  const [mode, setMode] = useState('login');
+  const [issue, setIssue] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const register = mode === 'register';
+
+  async function submit(event) {
+    event.preventDefault();
+    if (pending.current) return;
+    pending.current = true;
+    const fields = Object.fromEntries(new FormData(event.currentTarget));
+    setBusy(true);
+    setIssue(null);
+    try {
+      await signIn(mode, register ? { ...fields, displayName: fields.username } : fields);
+    } catch (error) {
+      setIssue(serviceError(error, register ? 'Account creation failed' : 'Sign-in failed'));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+
+  return <div className="signin">
+    <header className="site-header"><div className="header-inner"><Brand /></div></header>
+    <main className="signin-main">
+      <section className="signin-intro">
+        <p className="eyebrow ruled">Product authentication</p>
+        <h1>Inspection <em>desk.</em></h1>
+        <p className="lede">Enroll components, verify their visual fingerprints, and inspect the evidence.</p>
+        <div className="signin-reticle" aria-hidden="true"><Icon name="scope" /></div>
+      </section>
+      <section className="signin-panel">
+        <h2>{register ? 'Create an account' : 'Sign in'}</h2>
+        {expired && <p role="status">Your session expired. Sign in to continue.</p>}
+        <form onSubmit={submit} aria-busy={busy} key={mode}>
+          <fieldset disabled={busy}>
+            {register ? <>
+              <label>Username<input name="username" required autoComplete="username" /></label>
+              <label>Work email<input name="email" type="email" required autoComplete="email" /></label>
+            </> : <label>Email or username<input name="emailOrUsername" required autoComplete="username" /></label>}
+            <label>Password<input name="password" type="password" required
+              autoComplete={register ? 'new-password' : 'current-password'} /></label>
+            {register && <label>Requested role<select name="role" defaultValue="USER">
+              <option value="USER">Standard user</option>
+              <option value="MANUFACTURER">Manufacturer</option>
+              <option value="VERIFIER">Verifier</option>
+            </select></label>}
+            <Notice issue={issue} />
+            <Button type="submit" icon="arrow">{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</Button>
+          </fieldset>
+        </form>
+        <button type="button" className="text-button" disabled={busy}
+          onClick={() => { setMode(register ? 'login' : 'register'); setIssue(null); }}>
+          {register ? 'Back to sign in' : 'Create an account'}
+        </button>
+      </section>
+    </main>
+  </div>;
+}
+
+function useBackend() {
+  const [status, setStatus] = useState(null);
+  const sequence = useRef(0);
+  const probe = useCallback(async () => {
+    const check = ++sequence.current;
+    let next = 'Service unavailable';
+    try {
+      const { data } = await api.get('/actuator/health', { timeout: 5000, validateStatus: () => true });
+      if (data?.status === 'UP') next = 'Service online';
+      else if (data?.status === 'OUT_OF_SERVICE' || data?.status === 'MAINTENANCE') next = 'Service under maintenance';
+    } catch {
+      // The unavailable state covers health timeouts and network errors.
+    }
+    if (check === sequence.current) setStatus(next);
+  }, []);
+
+  useEffect(() => {
+    probe();
+    const timer = setInterval(probe, 10000);
+    return () => { clearInterval(timer); sequence.current++; };
+  }, [probe]);
+
+  return { status, probe };
+}
+
+function Dashboard({ access, revision, navigate }) {
+  const { request } = useAuth();
+  const [data, setData] = useState(null);
+  const [issue, setIssue] = useState(null);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    request({ url: '/api/dashboard', signal: controller.signal }).then(value => {
+      setData(value);
+      setIssue(null);
+    }).catch(error => {
+      if (!axios.isCancel(error)) setIssue(serviceError(error, 'Overview unavailable'));
+    });
+    return () => controller.abort();
+  }, [request, revision, retry]);
+
+  const metrics = [
+    ['Enrolled products', data?.productsAttested],
+    ['Enrollments today', data?.productsAttestedToday],
+    ['Verifications today', data?.verificationsToday],
+    ['Failed checks today', data?.failedVerificationsToday]
+  ];
+  return <>
+    <Heading label="Workspace" title="Inspection" em="overview." description="Track registered components and recent checks."
+      action={access.verify && <Button icon="plus" onClick={() => navigate('verify')}>New inspection</Button>} />
+    <Notice issue={issue} />
+    {issue && <Button kind="outline" onClick={() => setRetry(retry + 1)}>Retry overview</Button>}
+    {!data && !issue && <p role="status">Loading overview…</p>}
+    {data && <>
+      <section className="metrics" aria-label="Workspace counts">{metrics.map(([label, value]) =>
+        <div key={label}><span>{label}</span><strong>{Number.isFinite(value) ? value.toLocaleString() : '—'}</strong></div>
+      )}</section>
+      <section className="history">
+        <div className="section-heading"><h2>Recent activity</h2><button className="text-button" onClick={() => navigate('audit')}>View evidence log</button></div>
+        {data.recentActivity?.length ? <ul className="records">
+          {data.recentActivity.map((item, index) => {
+            const state = item.state === 'ATTESTED' ? { label: 'Reference enrolled', tone: 'success', icon: 'check' }
+              : verdict({ decision: item.decision, verified: item.state === 'CLEARED' ? true : item.state === 'REVIEW' ? false : undefined });
+            return <li key={item.productId + item.time + index}>
+              <button className="record-link mono" onClick={() => navigate('audit', item.productId)}>{item.productId}</button>
+              <Time value={item.time} /><Status tone={state.tone} icon={state.icon}>{state.label}</Status>
+            </li>;
+          })}
+        </ul> : <p>No inspection activity recorded.</p>}
+      </section>
+    </>}
+  </>;
+}
+
+function History({ attempts }) {
+  if (!attempts) return <p>This service has no attempt history for the record.</p>;
+  if (!attempts.length) return <p>No verification attempts recorded.</p>;
+  return <ol className="attempts">
+    {attempts.map(attempt => {
+      const outcome = verdict(attempt);
+      return <li key={attempt.attemptId}>
+        <div className="attempt-head">
+          <Status tone={outcome.tone} icon={outcome.icon}>{outcome.label}</Status><Time value={attempt.createdAt} />
+        </div>
+        <dl>
+          <Data label="Attempt ID" value={attempt.attemptId} mono />
+          <Data label="Cosine similarity" value={Number.isFinite(attempt.confidence) ? attempt.confidence.toFixed(3) : null} mono />
+          <Data label="Ledger delivery" value={attempt.blockchainConfirmed === true ? 'Confirmed' : null} />
+          <Data label="Transaction hash" value={attempt.transactionHash} mono />
+          <Data label="Ledger block" value={attempt.blockNumber} mono />
+        </dl>
+        {attempt.warning && <p>{attempt.warning}</p>}
+      </li>;
+    })}
+  </ol>;
+}
+
+function Audit({ productId }) {
+  const { request } = useAuth();
+  const [id, setId] = useState(productId || '');
+  const [lookup, setLookup] = useState(productId ? { id: productId, page: 0 } : null);
+  const [response, setResponse] = useState(null);
+  const [issue, setIssue] = useState(null);
+  const [loading, setLoading] = useState(Boolean(productId));
+
+  useEffect(() => {
+    if (!lookup) return;
+    const { id, page } = lookup;
+    const controller = new AbortController();
+    setLoading(true);
+    setIssue(null);
+    setResponse(null);
+    const pathSafe = /^[a-z0-9_.-]+$/i.test(id) && id !== '.' && id !== '..';
+    const url = pathSafe ? '/api/verify/' + encodeURIComponent(id) + '/log' : '/api/verify/log';
+    const params = pathSafe ? { page } : { productId: id, page };
+    request({ url, params, signal: controller.signal }).then(data => {
+      setResponse({ data, known: true });
+    }).catch(error => {
+      if (error.response?.status === 404) setResponse({ data: error.response.data, known: false });
+      else if (!axios.isCancel(error)) setIssue(serviceError(error, 'Evidence lookup failed'));
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    return () => controller.abort();
+  }, [lookup, request]);
+
+  return <>
+    <Heading label="Audit history" title="Evidence" em="log." description="Find enrollment evidence and verification attempts by product ID." />
+    <form className="audit-search" onSubmit={event => { event.preventDefault(); if (id.trim()) setLookup({ id, page: 0 }); }}>
+      <label>Product ID<input value={id} maxLength="255" className="mono" onChange={event => setId(event.target.value)} required /></label>
+      <Button type="submit" icon="search" disabled={loading || !id.trim()}>{loading ? 'Searching…' : 'Find evidence'}</Button>
+    </form>
+    <Notice issue={issue} />
+    {response && <div className="audit-result" aria-live="polite">
+      <section className="evidence">
+        <p className="eyebrow">{response.known ? 'Enrollment record' : 'Unknown product'}</p>
+        <h2 className="product-title mono">{lookup.id}</h2>
+        {response.known ? <dl>
+          <Data label="Recorded" value={response.data.createdAt && <Time value={response.data.createdAt} />} />
+          <Data label="Feature hash" value={response.data.featureHash} mono />
+          <Data label="Ledger delivery" value={ledgerLabel(response.data.ledgerStatus)} />
+          <Data label="Transaction hash" value={response.data.transactionHash === 'PENDING' ? null : response.data.transactionHash} mono />
+          <Data label="Ledger block" value={response.data.blockNumber >= 0 ? response.data.blockNumber : null} mono />
+        </dl> : <p>No fingerprint is registered for this product in your workspace.</p>}
+      </section>
+      <section className="history">
+        <h2>Inspection history</h2>
+        <History attempts={response.data.attempts} />
+        {(lookup.page > 0 || response.data.hasMoreAttempts) && <div className="button-row">
+          <Button kind="outline" disabled={lookup.page === 0} onClick={() => setLookup({ ...lookup, page: lookup.page - 1 })}>Newer attempts</Button>
+          <Button kind="outline" disabled={!response.data.hasMoreAttempts} onClick={() => setLookup({ ...lookup, page: lookup.page + 1 })}>Older attempts</Button>
+        </div>}
+      </section>
+    </div>}
+  </>;
+}
+
+function Workspace() {
+  const { user, logout } = useAuth();
+  const access = permissions(user.role);
+  const { status, probe } = useBackend();
+  const [route, setRoute] = useState({ view: 'overview', key: 0 });
+  const [revision, setRevision] = useState(0);
+  const [reference, setReference] = useState(null);
+  const main = useRef(null);
+  const allowed = (route.view !== 'enroll' || access.enroll) && (route.view !== 'verify' || access.verify);
+  const page = allowed ? route.view : 'overview';
+
+  useEffect(() => {
+    if (route.key) main.current.focus();
+  }, [route.key]);
+
+  const navigate = (view, productId) => setRoute(previous => ({ view, productId, key: previous.key + 1 }));
+  const links = nav.filter(({ id }) => id === 'overview' || id === 'audit' || access[id]);
+
+  return <>
+    <a href="#workspace" className="skip-link">Skip to workspace</a>
+    <header className="site-header">
+      <div className="header-inner">
+        <button type="button" className="brand-button" onClick={() => navigate('overview')}><Brand /></button>
+        {access.read && <nav aria-label="Workspace">{links.map(({ id, label }) =>
+          <button type="button" key={id} aria-current={page === id ? 'page' : undefined}
+            onClick={() => navigate(id)}>{label}</button>)}</nav>}
+        <div className="profile">
+          <span className="profile-role mono">{user.role === 'AUDITOR' ? 'Auditor · read only' : user.role.toLowerCase()}</span>
+          <Button kind="bare" icon="logout" aria-label="Sign out" title="Sign out" onClick={logout} />
+        </div>
+      </div>
+    </header>
+    <main className="workspace" ref={main} tabIndex="-1" id="workspace">
+      {status && status !== 'Service online' && <div className="service-banner" role="status">
+        <Status tone="warning" icon="alert">{status}</Status><Button kind="outline" onClick={probe}>Retry service</Button>
+      </div>}
+      {!access.read ? <Heading label="Workspace access" title="Access pending."
+        description="Ask your workspace administrator to assign an inspection or audit role." />
+        : page === 'overview' ? <Dashboard access={access} revision={revision} navigate={navigate} />
+        : page === 'audit' ? <Audit key={route.key} productId={route.productId} />
+        : <CaptureFlow key={route.key} verify={page === 'verify'} productId={route.productId}
+          reference={reference} onEnroll={setReference} onRecorded={() => setRevision(n => n + 1)}
+          onAudit={id => navigate('audit', id)} onInspect={id => navigate('verify', id)} />}
+    </main>
+  </>;
+}
+
+function Shell() {
+  const { user } = useAuth();
+  return user ? <Workspace key={user.tenantId + ':' + user.id} /> : <SignIn />;
+}
+
+export default function App() {
+  return <AuthProvider><Shell /></AuthProvider>;
+}

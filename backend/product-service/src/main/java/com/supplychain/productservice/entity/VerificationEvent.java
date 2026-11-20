@@ -1,5 +1,7 @@
 package com.supplychain.productservice.entity;
 
+import com.supplychain.productservice.dto.VerifyResponse;
+import com.supplychain.productservice.dto.VerifyResponse.Decision;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -15,17 +17,31 @@ public class VerificationEvent {
     @Column(nullable = false) private boolean verified;
     @Column(nullable = false) private double similarity;
     @Column(name = "blockchain_confirmed", nullable = false) private boolean blockchainConfirmed;
+    @Enumerated(EnumType.STRING) @Column(length = 24) private Decision decision;
+    @Column(columnDefinition = "text") private String warning;
+    @Column(name = "transaction_hash", length = 66) private String transactionHash;
+    @Column(name = "block_number") private Long blockNumber;
     @Column(nullable = false, updatable = false) private LocalDateTime createdAt = LocalDateTime.now();
 
     protected VerificationEvent() { }
-    public VerificationEvent(UUID tenantId, String productId, boolean verified, double similarity, boolean blockchainConfirmed) {
+
+    public VerificationEvent(UUID tenantId, String productId, VerifyResponse response) {
         this.tenantId = tenantId;
-        this.productId = productId; this.verified = verified; this.similarity = similarity; this.blockchainConfirmed = blockchainConfirmed;
+        this.productId = productId;
+        this.verified = response.verified();
+        this.similarity = response.confidence() == null ? 0d : response.confidence();
+        this.blockchainConfirmed = response.blockchainConfirmed();
+        this.decision = response.decision();
+        this.warning = response.warning();
+        this.transactionHash = response.transactionHash();
+        this.blockNumber = response.blockNumber();
     }
-    public String getProductId() { return productId; }
-    public UUID getTenantId() { return tenantId; }
-    public boolean isVerified() { return verified; }
-    public double getSimilarity() { return similarity; }
-    public boolean isBlockchainConfirmed() { return blockchainConfirmed; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public VerifyResponse toResponse() {
+        // Older events used zero for missing scores. A failed zero-score record is ambiguous.
+        Double score = decision == Decision.UNKNOWN_PRODUCT || (decision == null && !verified && similarity == 0)
+                ? null : similarity;
+        return new VerifyResponse(verified, score, blockchainConfirmed, transactionHash, blockNumber, warning,
+                decision, productId, id, createdAt);
+    }
 }

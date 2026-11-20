@@ -32,14 +32,16 @@ public class DashboardService {
                   (SELECT count(*) FROM blockchain_outbox WHERE tenant_id = ? AND status = 'PENDING') AS pending_attestations
                 """, tenantId, tenantId, tenantId, tenantId, tenantId);
         List<DashboardResponse.Activity> activity = jdbc.query("""
-                SELECT action, product_id, created_at, state FROM (
-                  SELECT 'Product attested' AS action, product_id, created_at, 'ATTESTED' AS state FROM product_fingerprints WHERE tenant_id = ?
+                SELECT action, product_id, created_at, state, decision FROM (
+                  SELECT 'Product attested' AS action, product_id, created_at, 'ATTESTED' AS state,
+                         NULL AS decision FROM product_fingerprints WHERE tenant_id = ?
                   UNION ALL
                   SELECT CASE WHEN verified THEN 'Verification passed' ELSE 'Identity mismatch' END,
-                         product_id, created_at, CASE WHEN verified THEN 'CLEARED' ELSE 'REVIEW' END FROM verification_events WHERE tenant_id = ?
+                         product_id, created_at, CASE WHEN verified THEN 'CLEARED' ELSE 'REVIEW' END, decision
+                  FROM verification_events WHERE tenant_id = ?
                 ) events ORDER BY created_at DESC LIMIT 10
                 """, (rs, rowNum) -> new DashboardResponse.Activity(rs.getString("action"), rs.getString("product_id"),
-                rs.getTimestamp("created_at").toLocalDateTime().toString(), rs.getString("state")), tenantId, tenantId);
+                rs.getTimestamp("created_at").toLocalDateTime().toString(), rs.getString("state"), rs.getString("decision")), tenantId, tenantId);
         return new DashboardResponse(number(totals, "products_attested"), number(totals, "products_today"), number(totals, "verifications_today"), number(totals, "failed_today"), number(totals, "pending_attestations"), activity);
     }
     private static long number(Map<String, Object> values, String key) { return ((Number) values.get(key)).longValue(); }

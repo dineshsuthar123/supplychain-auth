@@ -31,10 +31,11 @@ public class AuthController {
     private boolean secureCookie;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse servletResponse) {
         log.info("Registration request received for: {}", request.getEmail());
         try {
             AuthResponse response = authService.register(request);
+            addRefreshTokenCookie(servletResponse, response.getRefreshToken());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (RuntimeException e) {
             log.error("Registration failed: {}", e.getMessage());
