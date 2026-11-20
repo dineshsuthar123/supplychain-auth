@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +36,10 @@ public class AuthService {
     // In-memory nonce store (in production, use Redis)
     private final Map<String, Instant> nonceStore = new ConcurrentHashMap<>();
 
+    public List<String> registrationRoles() {
+        return allowSelfServiceOperatorRoles ? List.of("USER", "MANUFACTURER", "VERIFIER") : List.of("USER");
+    }
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering new user: {}", request.getEmail());
@@ -50,8 +56,8 @@ public class AuthService {
         }
 
         // Validate role
-        String requestedRole = request.getRole() != null ? request.getRole().toUpperCase() : "USER";
-        String role = allowSelfServiceOperatorRoles && requestedRole.matches("MANUFACTURER|VERIFIER") ? requestedRole : "USER";
+        String requestedRole = request.getRole() != null ? request.getRole().toUpperCase(Locale.ROOT) : "USER";
+        String role = registrationRoles().contains(requestedRole) ? requestedRole : "USER";
 
         // Create user
         Tenant tenant = tenantRepository.save(new Tenant(request.getCompany() != null && !request.getCompany().isBlank() ? request.getCompany() + "-" + UUID.randomUUID() : request.getUsername() + "-" + UUID.randomUUID()));
