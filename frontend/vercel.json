@@ -1,15 +1,19 @@
 {
     "framework": "create-react-app",
-    "buildCommand": "npm run build",
+    "buildCommand": "REACT_APP_API_BASE= npm run build",
     "outputDirectory": "build",
     "rewrites": [
         {
+            "source": "/auth/:path*",
+            "destination": "https://supplyprint-api.onrender.com/auth/:path*"
+        },
+        {
             "source": "/api/:path*",
-            "destination": "http://localhost:8080/api/:path*"
+            "destination": "https://supplyprint-api.onrender.com/api/:path*"
         },
         {
             "source": "/actuator/:path*",
-            "destination": "http://localhost:8080/actuator/:path*"
+            "destination": "https://supplyprint-api.onrender.com/actuator/:path*"
         }
     ],
     "headers": [
