@@ -4,6 +4,7 @@ import App from './App';
 import { api } from './auth';
 
 const user = { id: 'signup-operator', tenantId: 'signup-workspace', username: 'signup-test', role: 'USER' };
+const signupPassword = 'signup-fixture-' + user.id;
 let container;
 let root;
 let previousActEnvironment;
@@ -34,7 +35,7 @@ async function openSignup(roles) {
   await act(async () => createAccount.click());
   container.querySelector('[name="username"]').value = user.username;
   container.querySelector('[name="email"]').value = 'signup@example.test';
-  container.querySelector('[name="password"]').value = 'local-test-password';
+  container.querySelector('[name="password"]').value = signupPassword;
 }
 
 async function submitSignup() {
@@ -50,7 +51,7 @@ test('approval-only signup explains the Standard User role and sends no operator
   expect(container.textContent).toContain('A workspace administrator assigns inspection or audit access.');
   await submitSignup();
   expect(post).toHaveBeenCalledWith('/auth/register', {
-    username: user.username, email: 'signup@example.test', password: 'local-test-password', displayName: user.username
+    username: user.username, email: 'signup@example.test', password: signupPassword, displayName: user.username
   });
   expect(container.textContent).toContain('Access pending.');
 });

@@ -57,9 +57,10 @@ class EnrollVerifyIntegrationTest {
                 .andExpect(jsonPath("$.roles.length()").value(1))
                 .andExpect(jsonPath("$.roles[0]").value("USER"));
         String username = "signup-test-" + UUID.randomUUID();
+        String signupPassword = UUID.randomUUID().toString();
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("username", username,
-                                "email", username + "@example.test", "password", "signup-fixture-password",
+                                "email", username + "@example.test", "password", signupPassword,
                                 "role", "MANUFACTURER"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.role").value("USER"));
