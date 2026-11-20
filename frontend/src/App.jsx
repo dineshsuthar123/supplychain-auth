@@ -20,17 +20,36 @@ function permissions(role) {
   };
 }
 
+const signupRoleLabels = {
+  USER: 'Standard User',
+  MANUFACTURER: 'Manufacturer',
+  VERIFIER: 'Verifier'
+};
+
 function SignIn() {
   const { signIn, expired } = useAuth();
   const [mode, setMode] = useState('login');
   const [issue, setIssue] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [registrationRoles, setRegistrationRoles] = useState(null);
   const pending = useRef(false);
   const register = mode === 'register';
 
+  useEffect(() => {
+    if (!register) return;
+    const controller = new AbortController();
+    api.get('/auth/registration-options', { signal: controller.signal, timeout: 5000 }).then(({ data }) => {
+      const serverRoles = Array.isArray(data?.roles) ? data.roles : [];
+      setRegistrationRoles(Object.keys(signupRoleLabels).filter(role => role === 'USER' || serverRoles.includes(role)));
+    }).catch(error => {
+      if (!axios.isCancel(error)) setRegistrationRoles(['USER']);
+    });
+    return () => controller.abort();
+  }, [register]);
+
   async function submit(event) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || (register && !registrationRoles)) return;
     pending.current = true;
     const fields = Object.fromEntries(new FormData(event.currentTarget));
     setBusy(true);
@@ -65,17 +84,19 @@ function SignIn() {
             </> : <label>Email or username<input name="emailOrUsername" required autoComplete="username" /></label>}
             <label>Password<input name="password" type="password" required
               autoComplete={register ? 'new-password' : 'current-password'} /></label>
-            {register && <label>Requested role<select name="role" defaultValue="USER">
-              <option value="USER">Standard user</option>
-              <option value="MANUFACTURER">Manufacturer</option>
-              <option value="VERIFIER">Verifier</option>
-            </select></label>}
+            {register && (registrationRoles?.length > 1 ? (
+              <label>Account role<select name="role" defaultValue="USER">
+                {registrationRoles.map(role => <option value={role} key={role}>{signupRoleLabels[role]}</option>)}
+              </select></label>
+            ) : <p role="status">{registrationRoles
+              ? 'New accounts start as Standard User. A workspace administrator assigns inspection or audit access.'
+              : 'Checking signup options...'}</p>)}
             <Notice issue={issue} />
-            <Button type="submit" icon="arrow">{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</Button>
+            <Button type="submit" icon="arrow" disabled={register && !registrationRoles}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</Button>
           </fieldset>
         </form>
         <button type="button" className="text-button" disabled={busy}
-          onClick={() => { setMode(register ? 'login' : 'register'); setIssue(null); }}>
+          onClick={() => { setMode(register ? 'login' : 'register'); setRegistrationRoles(null); setIssue(null); }}>
           {register ? 'Back to sign in' : 'Create an account'}
         </button>
       </section>
@@ -241,6 +262,38 @@ function Audit({ productId }) {
   </>;
 }
 
+function PendingAccess() {
+  const { user, refreshSession } = useAuth();
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [issue, setIssue] = useState(null);
+
+  async function checkAccess() {
+    setChecking(true);
+    setIssue(null);
+    setChecked(false);
+    try {
+      await refreshSession();
+      setChecked(true);
+    } catch (error) {
+      if (!axios.isCancel(error)) setIssue(serviceError(error, 'Access check failed'));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return <>
+    <Heading label="Workspace access" title="Access pending."
+      description="A workspace administrator must assign your account an inspection or audit role."
+      action={<Button kind="outline" onClick={checkAccess} disabled={checking}>
+        {checking ? 'Checking access...' : 'Check access'}
+      </Button>} />
+    <p>Signed in as <strong>{user.username}</strong> (Standard User).</p>
+    {checked && <p role="status">Your account is still awaiting a role assignment.</p>}
+    <Notice issue={issue} />
+  </>;
+}
+
 function Workspace() {
   const { user, logout } = useAuth();
   const access = permissions(user.role);
@@ -277,8 +330,7 @@ function Workspace() {
       {status && status !== 'Service online' && <div className="service-banner" role="status">
         <Status tone="warning" icon="alert">{status}</Status><Button kind="outline" onClick={probe}>Retry service</Button>
       </div>}
-      {!access.read ? <Heading label="Workspace access" title="Access pending."
-        description="Ask your workspace administrator to assign an inspection or audit role." />
+      {!access.read ? <PendingAccess />
         : page === 'overview' ? <Dashboard access={access} revision={revision} navigate={navigate} />
         : page === 'audit' ? <Audit key={route.key} productId={route.productId} />
         : <CaptureFlow key={route.key} verify={page === 'verify'} productId={route.productId}

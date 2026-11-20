@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,11 @@ public class AuthController {
     private final JwtService jwtService;
     @Value("${supplyprint.cookies.secure:true}")
     private boolean secureCookie;
+
+    @GetMapping("/registration-options")
+    public Map<String, List<String>> registrationOptions() {
+        return Map.of("roles", authService.registrationRoles());
+    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse servletResponse) {

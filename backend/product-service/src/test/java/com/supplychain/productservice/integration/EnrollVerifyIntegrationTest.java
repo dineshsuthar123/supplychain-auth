@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -20,6 +21,7 @@ import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,12 +42,29 @@ class EnrollVerifyIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("blockchain.enabled", () -> "false");
+        registry.add("supplyprint.auth.allow-self-service-operator-roles", () -> "false");
     }
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JwtService jwt;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void productionSignupOptionsAndRegistrationRequireOperatorApproval() throws Exception {
+        mvc.perform(get("/auth/registration-options"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles.length()").value(1))
+                .andExpect(jsonPath("$.roles[0]").value("USER"));
+        String username = "signup-test-" + UUID.randomUUID();
+        String signupPassword = UUID.randomUUID().toString();
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("username", username,
+                                "email", username + "@example.test", "password", signupPassword,
+                                "role", "MANUFACTURER"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.role").value("USER"));
+    }
 
     @Test
     void multipartRetakeAddsAnotherRecordReadableByAnAuditor() throws Exception {
