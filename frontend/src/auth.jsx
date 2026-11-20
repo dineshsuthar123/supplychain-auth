@@ -20,6 +20,10 @@ function storedSession() {
   }
 }
 
+function sameIdentity(left, right) {
+  return left.id === right?.id && left.tenantId === right?.tenantId;
+}
+
 export function expiresSoon(token) {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -57,7 +61,7 @@ export function AuthProvider({ children }) {
 
     const promise = api.post('/auth/refresh').then(({ data }) => {
       if (generation !== version.current) throw new axios.CanceledError();
-      if (data.user.id !== current.current.user.id || data.user.tenantId !== current.current.user.tenantId) {
+      if (!sameIdentity(current.current.user, data.user)) {
         version.current++;
         save(null, true);
         throw new axios.CanceledError();
@@ -107,14 +111,20 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    const token = current.current?.accessToken;
-    if (!token) return;
+    const signingOut = current.current;
+    if (!signingOut) return;
     const refreshing = pendingRefresh.current?.promise;
     version.current++;
     save(null);
-    pendingLogout.current = Promise.resolve(refreshing).catch(() => {}).then(() =>
-      api.post('/auth/logout', null, { headers: { Authorization: 'Bearer ' + token } })
-    ).catch(() => {
+    pendingLogout.current = Promise.resolve(refreshing).catch(() => {}).then(async () => {
+      let { accessToken } = signingOut;
+      if (expiresSoon(accessToken)) {
+        const { data } = await api.post('/auth/refresh');
+        if (!sameIdentity(signingOut.user, data.user)) return;
+        accessToken = data.accessToken;
+      }
+      await api.post('/auth/logout', null, { headers: { Authorization: 'Bearer ' + accessToken } });
+    }).catch(() => {
       // The local session has already ended.
     }).finally(() => {
       pendingLogout.current = null;
