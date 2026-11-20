@@ -103,6 +103,12 @@ export function AuthProvider({ children }) {
     }
   }, [refresh]);
 
+  const refreshSession = () => {
+    const token = current.current?.accessToken;
+    if (!token) return Promise.reject(new axios.CanceledError());
+    return refresh(version.current, token);
+  };
+
   const signIn = async (mode, payload) => {
     await pendingLogout.current;
     const { data } = await api.post('/auth/' + mode, payload);
@@ -131,5 +137,5 @@ export function AuthProvider({ children }) {
     });
   };
 
-  return <Auth.Provider value={{ user: session?.user, expired, signIn, logout, request }}>{children}</Auth.Provider>;
+  return <Auth.Provider value={{ user: session?.user, expired, signIn, logout, request, refreshSession }}>{children}</Auth.Provider>;
 }
